@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include "burstfsk.h"
 
+const float pi2f = 6.2831853f;
+
 typedef struct {
 	unsigned dm_sps;
 	float dm_fs, inresamp_ratio;
@@ -13,10 +15,14 @@ typedef struct {
 	unsigned pd_fft_len, pd_win_len, pd_win_period;
 	unsigned pd_power_bin1, pd_power_bin2;
 	unsigned pd_peak_bin1, pd_peak_bin2;
+	unsigned pd_sideband_bins;
+	float pd_snr_thres;
 
 	// preamble detector state
 	unsigned pd_win_c;
 	sample_t *pd_fft_in, *pd_fft_out;
+	float pd_prev_peakc, pd_prev_peak_bin, pd_prev_snr;
+	sample_t pd_prev_sb;
 
 	// liquid-dsp objects (prefixed with l_)
 	nco_crcf l_ddc_nco;
@@ -24,7 +30,6 @@ typedef struct {
 	windowcf l_pd_win;
 	fftplan l_pd_fft;
 } burstfsk_state_t;
-
 
 static inline unsigned next_power_of_2(unsigned v) {
 	unsigned r;
@@ -38,9 +43,9 @@ static inline int clip_int(int minv, int maxv, int v) {
 	return v;
 }
 
-static inline unsigned freq_to_pd_bin(burstfsk_state_t *st, float f) {
+static inline unsigned freq_to_pd_bin(burstfsk_state_t *st, int clip_margin, float f) {
 	unsigned fftlen = st->pd_fft_len;
-	return clip_int(1, fftlen-2,
+	return clip_int(clip_margin, fftlen-1-clip_margin,
 	round((0.5f + f / st->dm_fs) * fftlen));
 }
 
@@ -55,15 +60,24 @@ void *burstfsk_init(burstfsk_config_t *conf) {
 	st->l_inresamp     = msresamp_crcf_create(st->inresamp_ratio, 60);
 
 	st->l_ddc_nco = nco_crcf_create(LIQUID_NCO);
-	nco_crcf_set_frequency(st->l_ddc_nco, -6.2831853f*conf->center_freq/conf->input_sample_rate);
+	nco_crcf_set_frequency(st->l_ddc_nco, -pi2f*conf->center_freq/conf->input_sample_rate);
 
 	st->pd_win_len     = st->dm_sps * conf->pd_window_symbols;
 	st->pd_fft_len     = next_power_of_2(2 * st->pd_win_len);
 	st->pd_win_period  = st->pd_win_len/4;
-	st->pd_power_bin1  = freq_to_pd_bin(st,-0.5f*conf->pd_power_bandwidth);
-	st->pd_power_bin2  = freq_to_pd_bin(st, 0.5f*conf->pd_power_bandwidth);
-	st->pd_peak_bin1   = freq_to_pd_bin(st,-conf->pd_max_freq_offset);
-	st->pd_peak_bin2   = freq_to_pd_bin(st, conf->pd_max_freq_offset);
+
+	st->pd_sideband_bins = st->pd_fft_len / st->dm_sps / 2;
+
+	st->pd_power_bin1  = freq_to_pd_bin(st, 0,
+	                     -0.5f*conf->pd_power_bandwidth);
+	st->pd_power_bin2  = freq_to_pd_bin(st, 0,
+	                      0.5f*conf->pd_power_bandwidth);
+	st->pd_peak_bin1   = freq_to_pd_bin(st, st->pd_sideband_bins,
+	                     -conf->pd_max_freq_offset);
+	st->pd_peak_bin2   = freq_to_pd_bin(st, st->pd_sideband_bins,
+	                      conf->pd_max_freq_offset);
+
+	st->pd_snr_thres   = 5e-2; // TODO?
 
 	printf("%f  %u %u  %u %u  %u %u\n", (double)st->dm_fs, st->pd_win_len, st->pd_fft_len, st->pd_power_bin1, st->pd_power_bin2, st->pd_peak_bin1, st->pd_peak_bin2);
 
@@ -182,5 +196,32 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 	peakc = fftm[peakp];
 	peakr = fftm[peakp+1];
 	snr = peakc / power;
-	printf("%E  %5u %E  %E %E %E\n", (double)power, peakp, (double)snr, (double)peakl, (double)peakc, (double)peakr);
+
+	sample_t sideband_phase =
+	 (ffto[peakp + st->pd_sideband_bins]-
+	  ffto[peakp - st->pd_sideband_bins])*
+	  conjf(ffto[peakp]);
+
+	printf("%E  %c %5u %E  %E %E %E  %E %E\n", (double)power, snr > st->pd_snr_thres ? '!' : ' ', peakp, (double)snr, (double)peakl, (double)peakc, (double)peakr,
+
+		/*(double)fftm[peakp - st->pd_sideband_bins],
+		(double)fftm[peakp + st->pd_sideband_bins]*/
+		(double)cabsf(sideband_phase),(double)cargf(sideband_phase)
+	);
+
+	if(st->pd_prev_snr > st->pd_snr_thres && peakc < st->pd_prev_peakc) {
+		// peak was highest in previous window: start demodulating
+		printf("detect: %5f %5f\n", (double)st->pd_prev_peak_bin, carg((double complex)st->pd_prev_sb));
+	}
+
+	if(peakc > st->pd_prev_peakc) {
+		st->pd_prev_peak_bin =
+		(float)((int)peakp - (int)fftn/2) +
+		(peakr - peakl) / (peakl + peakc + peakr);
+		st->pd_prev_sb = sideband_phase;
+		st->pd_prev_snr = snr;
+	} else {
+		st->pd_prev_snr = 0;
+	}
+	st->pd_prev_peakc = peakc;
 }
