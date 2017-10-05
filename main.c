@@ -9,7 +9,7 @@ int main() {
 	void *fsk;
 	sample1_t buf1[BUFLEN];
 	sample_t buf2[BUFLEN];
-	burstfsk_config_t fskconf = { 300000, 10000 };
+	burstfsk_config_t fskconf = { 300000, -8000, 10000, 5000, 20000, 64 };
 	fsk = burstfsk_init(&fskconf);
 	for(;;) {
 		size_t n, i;

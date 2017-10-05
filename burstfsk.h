@@ -1,6 +1,8 @@
 typedef struct {
-	float input_sample_rate;
-	float symbol_rate;
+	float input_sample_rate, center_freq, symbol_rate;
+	// preamble detector parameters
+	float pd_max_freq_offset, pd_power_bandwidth;
+	unsigned pd_window_symbols;
 } burstfsk_config_t;
 
 typedef float complex sample_t;

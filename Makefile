@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -pedantic -std=c99 -O3
-LIBS=-lliquid
+CFLAGS=-Wall -Wextra -Wdouble-promotion -pedantic -std=c99 -O3
+LIBS=-lliquid -lm
 OBJS=burstfsk.o main.o
 
 all: $(OBJS)
