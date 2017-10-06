@@ -7,6 +7,7 @@
 
 const float pi2f = 6.2831853f;
 
+#define DMI_N_MAX 5
 typedef struct {
 	unsigned dm_sps;
 	float dm_fs, inresamp_ratio;
@@ -23,6 +24,10 @@ typedef struct {
 	sample_t *pd_fft_in, *pd_fft_out;
 	float pd_prev_peakc, pd_prev_peak_bin, pd_prev_snr;
 	sample_t pd_prev_sb;
+
+	// demodulator instances
+	unsigned dmi_n;
+	void *dmi_array[DMI_N_MAX];
 
 	// liquid-dsp objects (prefixed with l_)
 	nco_crcf l_ddc_nco;
@@ -43,6 +48,10 @@ static inline int clip_int(int minv, int maxv, int v) {
 	return v;
 }
 
+void *fskdemod_init_instance(void *state1, int id);
+void fskdemod_start(void *state, float freqoffset);
+void fskdemod_execute(void *state, sample_t *signal, unsigned nsamples);
+int fskdemod_is_free(void *state);
 static inline unsigned freq_to_pd_bin(burstfsk_state_t *st, int clip_margin, float f) {
 	unsigned fftlen = st->pd_fft_len;
 	return clip_int(clip_margin, fftlen-1-clip_margin,
@@ -89,6 +98,11 @@ void *burstfsk_init(burstfsk_config_t *conf) {
 		st->pd_fft_len, st->pd_fft_in, st->pd_fft_out,
 		LIQUID_FFT_FORWARD, 0);
 
+	st->dmi_n = DMI_N_MAX;
+	unsigned i;
+	for(i=0; i<st->dmi_n; i++) {
+		st->dmi_array[i] = fskdemod_init_instance(st, i);
+	}
 	return st;
 }
 
@@ -134,6 +148,9 @@ static void burstfsk_1_execute(void *state, sample_t *samp, unsigned nsamp) {
 			burstfsk_2_execute(state, win);
 		}
 	}
+	unsigned i;
+	for(i=0; i<st->dmi_n; i++)
+		fskdemod_execute(st->dmi_array[i], samp, nsamp);
 }
 
 
@@ -173,6 +190,10 @@ float *v, unsigned firstindex, unsigned lastindex) {
 	return pp;
 }
 
+static inline float angle_to_positive(float v) {
+	if(v < 0) return v + pi2f;
+	else return v;
+}
 
 static void burstfsk_2_execute(void *state, sample_t *win) {
 	/* This function gets successive windows of resampled signal
@@ -211,9 +232,27 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 
 	if(st->pd_prev_snr > st->pd_snr_thres && peakc < st->pd_prev_peakc) {
 		// peak was highest in previous window: start demodulating
-		printf("detect: %5f %5f\n", (double)st->pd_prev_peak_bin, carg((double complex)st->pd_prev_sb));
+		float freqoffset, timingsamples;
+		freqoffset = st->pd_prev_peak_bin * (pi2f / fftn);
+		timingsamples = angle_to_positive(cargf(st->pd_prev_sb))
+		              * (2.0f * st->dm_sps / pi2f);
+		printf("detect: %5f %5f\n", (double)freqoffset, (double)timingsamples);
+		unsigned i;
+		void *dmi_p = NULL;
+		for(i=0; i<st->dmi_n; i++) {
+			void *dmi_p_l = st->dmi_array[i];
+			if(fskdemod_is_free(dmi_p_l)) {
+				dmi_p = dmi_p_l;
+				break;
+			}
+		}
+		if(dmi_p != NULL) {
+			fskdemod_start(dmi_p, freqoffset);
+			/* Add correct number of extra samples in beginning
+			 * to align symbol clock correctly */
+			fskdemod_execute(dmi_p, win, (int)timingsamples);
+		}
 	}
-
 	if(peakc > st->pd_prev_peakc) {
 		st->pd_prev_peak_bin =
 		(float)((int)peakp - (int)fftn/2) +
@@ -224,4 +263,57 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 		st->pd_prev_snr = 0;
 	}
 	st->pd_prev_peakc = peakc;
+}
+
+
+typedef struct {
+	int id, running;
+	//float freqoffset;
+	burstfsk_state_t *st1;
+	nco_crcf l_nco;
+	windowcf l_win;
+} demodinstance_state_t;
+
+
+void *fskdemod_init_instance(void *state1, int id) {
+	burstfsk_state_t *st1 = state1;
+	demodinstance_state_t *st2;
+	st2 = malloc(sizeof(demodinstance_state_t));
+	memset(st2, 0, sizeof(demodinstance_state_t));
+	st2->id = id;
+	st2->st1 = st1;
+
+	st2->l_nco = nco_crcf_create(LIQUID_NCO);
+	st2->l_win = windowcf_create(20);
+	return st2;
+}
+
+
+void fskdemod_start(void *state, float freqoffset) {
+	demodinstance_state_t *st = state;
+	st->running = 1;
+	//st->freqoffset = freqoffset;
+	nco_crcf_set_phase(st->l_nco, 0);
+	nco_crcf_set_frequency(st->l_nco, -freqoffset);
+}
+
+
+#include <unistd.h> // debug
+void fskdemod_execute(void *state, sample_t *signal, unsigned nsamples) {
+	demodinstance_state_t *st = state;
+	unsigned samp_i;
+	if(!st->running) return;
+	for(samp_i=0; samp_i<nsamples; samp_i++) {
+		sample_t oscout=0, o;
+		nco_crcf_step(st->l_nco);
+		nco_crcf_cexpf(st->l_nco, &oscout);
+		windowcf_push(st->l_win, o = signal[samp_i] * oscout);
+		write(3+st->id, &o, sizeof(sample_t)); // debug
+	}
+}
+
+
+int fskdemod_is_free(void *state) {
+	demodinstance_state_t *st = state;
+	return !st->running;
 }
