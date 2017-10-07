@@ -32,7 +32,7 @@ typedef struct {
 	unsigned corr_len, corr_num;
 
 	// demodulator instances
-	unsigned dmi_n;
+	unsigned dmi_n, packet_num;
 	void *dmi_array[DMI_N_MAX];
 
 	// liquid-dsp objects (prefixed with l_)
@@ -95,7 +95,7 @@ void *burstfsk_init(burstfsk_config_t *conf) {
 
 	st->pd_snr_thres   = 5e-2; // TODO?
 
-	printf("%f  %u %u  %u %u  %u %u\n", (double)st->dm_fs, st->pd_win_len, st->pd_fft_len, st->pd_power_bin1, st->pd_power_bin2, st->pd_peak_bin1, st->pd_peak_bin2);
+	//printf("%f  %u %u  %u %u  %u %u\n", (double)st->dm_fs, st->pd_win_len, st->pd_fft_len, st->pd_power_bin1, st->pd_power_bin2, st->pd_peak_bin1, st->pd_peak_bin2);
 
 	st->l_pd_win = windowcf_create(st->pd_win_len);
 
@@ -107,7 +107,6 @@ void *burstfsk_init(burstfsk_config_t *conf) {
 
 	fskdemod_init(st);
 
-	printf("asdfg %d", st->corr_len);
 	st->dmi_n = DMI_N_MAX;
 	unsigned i;
 	for(i=0; i<st->dmi_n; i++) {
@@ -249,8 +248,9 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 		              * (2.0f * st->dm_sps / pi2f)
 				    + timing_samples_offset;
 		printf("detect: %5f %5f\n", (double)freqoffset, (double)timingsamples);
-		unsigned i;
 		void *dmi_p = NULL;
+#if 0
+		unsigned i;
 		for(i=0; i<st->dmi_n; i++) {
 			void *dmi_p_l = st->dmi_array[i];
 			if(fskdemod_is_free(dmi_p_l)) {
@@ -258,6 +258,9 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 				break;
 			}
 		}
+#else
+		dmi_p = st->dmi_array[(++st->packet_num) % st->dmi_n];
+#endif
 		if(dmi_p != NULL) {
 			int skipsamples = (int)timingsamples;
 			fskdemod_start(dmi_p, freqoffset);
