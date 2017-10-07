@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <assert.h>
+#include <unistd.h>
 #include "burstfsk.h"
 
 const float pi2f = 6.2831853f;
@@ -306,9 +307,10 @@ void fskdemod_init(void *state) {
 
 #define MAX_CORRELATORS 8
 typedef struct {
-	unsigned id, running, symphase;
+	unsigned id, running, symphase, nbitsdone;
 	unsigned sps, corr_len, corr_num;
 	dotprod_cccf correlators[MAX_CORRELATORS];
+	int bit_fd;
 	//float freqoffset;
 	nco_crcf l_nco;
 	windowcf l_win;
@@ -333,7 +335,17 @@ void *fskdemod_init_instance(void *state1, int id) {
 		st2->correlators[i] = dotprod_cccf_create(
 		 st1->corr_taps + st2->corr_len*i, st2->corr_len);
 
+	st2->bit_fd = 3 + id;
+
 	return st2;
+}
+
+
+void bit_out(void *state, char v) {
+	demodinstance_state_t *st = state;
+	ssize_t r;
+	r = write(st->bit_fd, &v, 1);
+	(void)r;
 }
 
 
@@ -344,10 +356,10 @@ void fskdemod_start(void *state, float freqoffset) {
 	//st->freqoffset = freqoffset;
 	nco_crcf_set_phase(st->l_nco, 0);
 	nco_crcf_set_frequency(st->l_nco, -freqoffset);
+	bit_out(st, '\n');
 }
 
 
-//#include <unistd.h> // debug
 void fskdemod_execute(void *state, sample_t *signal, unsigned nsamples) {
 	demodinstance_state_t *st = state;
 	unsigned samp_i;
@@ -371,7 +383,9 @@ void fskdemod_execute(void *state, sample_t *signal, unsigned nsamples) {
 				float m = mag2(r);
 				if(m > max_m) { max_m = m; max_i = i; }
 			}
-			printf("%d %f %u\n", st->id, (double)max_m, max_i&2);
+			//printf("%d %f %u\n", st->id, (double)max_m, max_i&2);
+			bit_out(st, (max_i&2) ? '0' : '1');
+			if((++st->nbitsdone) >= 800) st->running = 0;
 		}
 
 	}
