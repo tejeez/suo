@@ -95,7 +95,7 @@ void *burstfsk_init(burstfsk_config_t *conf) {
 
 	st->pd_snr_thres   = 5e-2; // TODO?
 
-	//printf("%f  %u %u  %u %u  %u %u\n", (double)st->dm_fs, st->pd_win_len, st->pd_fft_len, st->pd_power_bin1, st->pd_power_bin2, st->pd_peak_bin1, st->pd_peak_bin2);
+	printf("%f  %u %u  %u %u  %u %u\n", (double)st->dm_fs, st->pd_win_len, st->pd_fft_len, st->pd_power_bin1, st->pd_power_bin2, st->pd_peak_bin1, st->pd_peak_bin2);
 
 	st->l_pd_win = windowcf_create(st->pd_win_len);
 
@@ -231,14 +231,14 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 	 (ffto[peakp + st->pd_sideband_bins]-
 	  ffto[peakp - st->pd_sideband_bins])*
 	  conjf(ffto[peakp]);
-
+#if 0
 	printf("%E  %c %5u %E  %E %E %E  %E %E\n", (double)power, snr > st->pd_snr_thres ? '!' : ' ', peakp, (double)snr, (double)peakl, (double)peakc, (double)peakr,
 
 		/*(double)fftm[peakp - st->pd_sideband_bins],
 		(double)fftm[peakp + st->pd_sideband_bins]*/
 		(double)cabsf(sideband_phase),(double)cargf(sideband_phase)
 	);
-
+#endif
 	if(st->pd_prev_snr > st->pd_snr_thres && peakc < st->pd_prev_peakc) {
 		// peak was highest in previous window: start demodulating
 		float freqoffset, timingsamples;
@@ -356,6 +356,7 @@ void fskdemod_start(void *state, float freqoffset) {
 	demodinstance_state_t *st = state;
 	st->running = 1;
 	st->symphase = 0;
+	st->nbitsdone = 0;
 	//st->freqoffset = freqoffset;
 	nco_crcf_set_phase(st->l_nco, 0);
 	nco_crcf_set_frequency(st->l_nco, -freqoffset);
