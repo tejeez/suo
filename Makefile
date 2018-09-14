@@ -3,7 +3,7 @@ CC=gcc
 CFLAGS=-Wall -Wextra -Wdouble-promotion -std=c99 -O3
 LIBS=-lliquid -lm
 MAINOBJS=burstfsk.o main.o
-BITOBJS=efr32bits.o
+BITOBJS=efr32bits.o pos.o
 
 all: main efr32bits
 

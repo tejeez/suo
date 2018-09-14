@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <liquid/liquid.h>
+#include "pos.h"
 
 int bit_num = 0;
 
@@ -36,14 +37,20 @@ uint8_t swap_byte_bit_order(uint8_t v) {
 }
 
 void pos_received(uint8_t *data, int len) {
-	char print_buf[1000], *print_p = print_buf;
+	char print_buf[1000]/*, *print_p = print_buf*/;
 	int i;
+	(void)len;
+	i = pos2text(data, print_buf, 1000);
+	printf("%s", print_buf);
+	(void)write(3, print_buf, i);
+	#if 0
 	print_p += sprintf(print_p, "$8101241114113deaffffffffffffffffffff\n$007000");
 	for(i = 0; i < len; i++) {
 		print_p += sprintf(print_p, "%02x", data[i]);
 	}
 	print_p += sprintf(print_p, "\n");
 	write(3, print_buf, print_p - print_buf);
+	#endif
 }
 
 fec fecdecoder;
@@ -65,9 +72,6 @@ void pkt_received(int *pktb) {
 	fec_decode(fecdecoder, MSG_DEC_BYTES, msg_rec, msg_dec);
 	for(i = 0; i < MSG_DEC_BYTES; i++)
 		msg_dec[i] = swap_byte_bit_order(msg_dec[i]);
-	if(msg_dec[0] == 15) {
-		pos_received(msg_dec+1, 15);
-	}
 	//unsigned a = crc_generate_key(LIQUID_CRC_16, msg_dec, 16);
 	//printf("crc=%02x ", a);
 	printf("RX ");
@@ -75,6 +79,10 @@ void pkt_received(int *pktb) {
 		printf("%02x ", msg_dec[i]);
 	}
 	printf("\n");
+	if(msg_dec[0] == 15) {
+		pos_received(msg_dec+1, 15);
+	}
+	fflush(stdout);
 }
 
 int syncp = -1, running = 0;
