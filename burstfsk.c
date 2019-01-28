@@ -28,7 +28,7 @@ typedef struct {
 	sample_t pd_prev_sb;
 
 	// parameters and constant data used by demodulators
-	sample_t *corr_taps;
+	const sample_t *corr_taps;
 	unsigned corr_len, corr_num;
 
 	// demodulator instances
@@ -232,12 +232,14 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 	  ffto[peakp - st->pd_sideband_bins])*
 	  conjf(ffto[peakp]);
 
+#if 0
 	printf("%E  %c %5u %E  %E %E %E  %E %E\n", (double)power, snr > st->pd_snr_thres ? '!' : ' ', peakp, (double)snr, (double)peakl, (double)peakc, (double)peakr,
 
 		/*(double)fftm[peakp - st->pd_sideband_bins],
 		(double)fftm[peakp + st->pd_sideband_bins]*/
 		(double)cabsf(sideband_phase),(double)cargf(sideband_phase)
 	);
+#endif
 
 	if(st->pd_prev_snr > st->pd_snr_thres && peakc < st->pd_prev_peakc) {
 		// peak was highest in previous window: start demodulating
@@ -285,7 +287,7 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 
 // for now it's a fixed correlator bank generated in python by
 // ','.join(map(lambda x: '%.4ff%+.4ff*I' % (x.real, x.imag), oh2eat.gfsk_bank(4, 0.7, 1.0, 0, 3, 2)))
-sample_t fixed_correlators[] = {
+const sample_t fixed_correlators[] = {
 -0.6704f-0.1062f*I,-0.9497f-0.1430f*I,-0.9921f+0.1251f*I,-0.7853f+0.6191f*I,-0.3461f+0.9382f*I,0.1951f+0.9808f*I,0.6788f+0.7343f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6788f-0.7343f*I,0.1951f-0.9808f*I,-0.3461f-0.9382f*I,-0.7853f-0.6191f*I,-0.9921f-0.1251f*I,-0.9497f+0.1430f*I,-0.6704f+0.1062f*I,-0.6704f-0.1062f*I,-0.9497f-0.1430f*I,-0.9921f+0.1251f*I,-0.7853f+0.6191f*I,-0.3461f+0.9382f*I,0.1951f+0.9808f*I,0.6788f+0.7343f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6899f-0.7239f*I,0.6899f-0.7239f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6844f+0.7291f*I,0.4425f+0.8523f*I,0.3082f+0.6048f*I,0.3082f+0.6048f*I,0.4425f+0.8523f*I,0.6844f+0.7291f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6899f-0.7239f*I,0.6899f-0.7239f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6899f+0.7239f*I,0.6899f+0.7239f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6844f-0.7291f*I,0.4425f-0.8523f*I,0.3082f-0.6048f*I,0.3082f+0.6048f*I,0.4425f+0.8523f*I,0.6844f+0.7291f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6899f-0.7239f*I,0.6899f-0.7239f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6788f+0.7343f*I,0.1951f+0.9808f*I,-0.3461f+0.9382f*I,-0.7853f+0.6191f*I,-0.9921f+0.1251f*I,-0.9497f-0.1430f*I,-0.6704f-0.1062f*I,0.3082f-0.6048f*I,0.4425f-0.8523f*I,0.6844f-0.7291f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6899f+0.7239f*I,0.6899f+0.7239f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6788f-0.7343f*I,0.1951f-0.9808f*I,-0.3461f-0.9382f*I,-0.7853f-0.6191f*I,-0.9921f-0.1251f*I,-0.9497f+0.1430f*I,-0.6704f+0.1062f*I,0.3082f-0.6048f*I,0.4425f-0.8523f*I,0.6844f-0.7291f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6899f+0.7239f*I,0.6899f+0.7239f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6899f-0.7239f*I,0.6899f-0.7239f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6844f+0.7291f*I,0.4425f+0.8523f*I,0.3082f+0.6048f*I,-0.6704f+0.1062f*I,-0.9497f+0.1430f*I,-0.9921f-0.1251f*I,-0.7853f-0.6191f*I,-0.3461f-0.9382f*I,0.1951f-0.9808f*I,0.6788f-0.7343f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6899f+0.7239f*I,0.6899f+0.7239f*I,0.9625f+0.2714f*I,0.9625f-0.2714f*I,0.6844f-0.7291f*I,0.4425f-0.8523f*I,0.3082f-0.6048f*I,-0.6704f+0.1062f*I,-0.9497f+0.1430f*I,-0.9921f-0.1251f*I,-0.7853f-0.6191f*I,-0.3461f-0.9382f*I,0.1951f-0.9808f*I,0.6788f-0.7343f*I,0.9625f-0.2714f*I,0.9625f+0.2714f*I,0.6788f+0.7343f*I,0.1951f+0.9808f*I,-0.3461f+0.9382f*I,-0.7853f+0.6191f*I,-0.9921f+0.1251f*I,-0.9497f-0.1430f*I,-0.6704f-0.1062f*I
 };
 
@@ -317,8 +319,18 @@ typedef struct {
 	//float freqoffset;
 	nco_crcf l_nco;
 	windowcf l_win;
+
+	// callbacks
+	void *out_arg;
+	void (*out_reset)(void *arg);
+	void (*out_bit)(void *arg, int bit);
 } demodinstance_state_t;
 
+
+/* TODO */
+void *deframer_init();
+void deframer_reset();
+void deframer_bit();
 
 void *fskdemod_init_instance(void *state1, int id) {
 	burstfsk_state_t *st1 = state1;
@@ -336,19 +348,16 @@ void *fskdemod_init_instance(void *state1, int id) {
 	unsigned i;
 	for(i=0; i<st2->corr_num; i++)
 		st2->correlators[i] = dotprod_cccf_create(
-		 st1->corr_taps + st2->corr_len*i, st2->corr_len);
+		 (sample_t*)st1->corr_taps + st2->corr_len*i, st2->corr_len);
 
 	st2->bit_fd = 3 + id;
 
+	/* TODO: find out neat way to change deframer and have the choice as parameter */
+	st2->out_arg = deframer_init();
+	st2->out_reset = deframer_reset;
+	st2->out_bit = deframer_bit;
+
 	return st2;
-}
-
-
-void bit_out(void *state, char v) {
-	demodinstance_state_t *st = state;
-	ssize_t r;
-	r = write(st->bit_fd, &v, 1);
-	(void)r;
 }
 
 
@@ -359,7 +368,7 @@ void fskdemod_start(void *state, float freqoffset) {
 	//st->freqoffset = freqoffset;
 	nco_crcf_set_phase(st->l_nco, 0);
 	nco_crcf_set_frequency(st->l_nco, -freqoffset);
-	bit_out(st, '\n');
+	st->out_reset(st->out_arg);
 }
 
 
@@ -387,7 +396,7 @@ void fskdemod_execute(void *state, sample_t *signal, unsigned nsamples) {
 				if(m > max_m) { max_m = m; max_i = i; }
 			}
 			//printf("%d %f %u\n", st->id, (double)max_m, max_i&2);
-			bit_out(st, (max_i&2) ? '0' : '1');
+			st->out_bit(st->out_arg, (max_i&2) ? 0 : 1);
 			if((++st->nbitsdone) >= 800) st->running = 0;
 		}
 
