@@ -5,7 +5,5 @@ typedef struct {
 	unsigned pd_window_symbols;
 } burstfsk_config_t;
 
-typedef float complex sample_t;
-
 void *burstfsk_init(burstfsk_config_t *conf);
 void burstfsk_execute(void *state, sample_t *insamp, unsigned n_insamp);
