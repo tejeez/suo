@@ -4,6 +4,7 @@
 #include <assert.h>
 /*#include <stdio.h>
 #include <liquid/liquid.h>*/
+#include "common.h"
 
 typedef uint64_t bw_t; // bit window
 
@@ -86,4 +87,7 @@ void deframer_bit(deframer_t *s, int b) {
 	}
 	s->bit_num++;
 }
+
+
+const struct deframer_code syncword_deframer_code = { deframer_init, deframer_reset, deframer_bit };
 

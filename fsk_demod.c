@@ -5,14 +5,12 @@
 #include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
-typedef float complex sample_t;
-#include "burstfsk.h"
-#include "fskdemod.h"
+#include "fsk_demod.h"
 
 /*static const float pi2f = 6.2831853f;*/
 
 #define MAX_CORRELATORS 8
-typedef struct {
+struct fskdemod_state {
 	/* configuration */
 	unsigned id, sps;
 	unsigned corr_len, corr_num;
@@ -31,7 +29,9 @@ typedef struct {
 	void *out_arg;
 	void (*out_reset)(void *arg);
 	void (*out_bit)(void *arg, int bit);
-} fskdemod_state_t;
+	struct deframer_code deframer;
+	void *deframer_arg;
+};
 
 
 // for now it's a fixed correlator bank generated in python by
@@ -41,7 +41,7 @@ const sample_t fixed_correlators[] = {
 };
 
 
-void fskdemod_conf_default(fskdemod_conf_t *c) {
+void fskdemod_conf_default(struct fsk_demod_conf *c) {
 	c->sps = 0;//TODO
 	c->id = 0;
 	c->corr_taps = fixed_correlators;
@@ -76,10 +76,11 @@ static inline float mag2(sample_t v) {
 void *deframer_init();
 void deframer_reset();
 void deframer_bit();
-void *fskdemod_init(fskdemod_conf_t *c) {
-	fskdemod_state_t *st2;
-	st2 = malloc(sizeof(fskdemod_state_t));
-	memset(st2, 0, sizeof(fskdemod_state_t));
+void *fskdemod_init(const void *conf) {
+	const struct fsk_demod_conf *c = conf;
+	struct fskdemod_state *st2;
+	st2 = malloc(sizeof(struct fskdemod_state));
+	memset(st2, 0, sizeof(struct fskdemod_state));
 
 	st2->id = c->id;
 	st2->sps = c->sps;
@@ -103,21 +104,22 @@ void *fskdemod_init(fskdemod_conf_t *c) {
 }
 
 
-void fskdemod_start(void *state, float freqoffset) {
-	fskdemod_state_t *st = state;
+int fskdemod_reset(void *state, float freqoffset) {
+	struct fskdemod_state *st = state;
 	st->running = 1;
 	st->symphase = 0;
 	//st->freqoffset = freqoffset;
 	nco_crcf_set_phase(st->l_nco, 0);
 	nco_crcf_set_frequency(st->l_nco, -freqoffset);
 	st->out_reset(st->out_arg);
+	return 0;
 }
 
 
-void fskdemod_execute(void *state, sample_t *signal, unsigned nsamples) {
-	fskdemod_state_t *st = state;
-	unsigned samp_i;
-	if(!st->running) return;
+int fskdemod_execute(void *state, sample_t *signal, size_t nsamples) {
+	struct fskdemod_state *st = state;
+	size_t samp_i;
+	if(!st->running) return -1;
 	unsigned corr_num = st->corr_num;
 	for(samp_i=0; samp_i<nsamples; samp_i++) {
 		sample_t oscout=0, o;
@@ -143,13 +145,17 @@ void fskdemod_execute(void *state, sample_t *signal, unsigned nsamples) {
 		}
 
 	}
+	return 0;
 }
 
 
 int fskdemod_is_free(void *state) {
-	fskdemod_state_t *st = state;
+	struct fskdemod_state *st = state;
 	return !st->running;
 }
+
+
+const struct demod_code fsk_demod_code = { fskdemod_init, fskdemod_execute, fskdemod_reset };
 
 #if 0
 /// asdf
@@ -193,7 +199,7 @@ typedef struct {
 	void *out_arg;
 	void (*out_reset)(void *arg);
 	void (*out_bit)(void *arg, int bit);
-} fskdemod_state_t;
+} struct fskdemod_state;
 
 
 /* TODO */

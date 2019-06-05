@@ -5,9 +5,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <unistd.h>
-typedef float complex sample_t;
-#include "burstfsk.h"
-#include "fskdemod.h"
+#include "preamble_acq.h"
 
 static const float pi2f = 6.2831853f;
 
@@ -38,7 +36,11 @@ typedef struct {
 	msresamp_crcf l_inresamp;
 	windowcf l_pd_win;
 	fftplan l_pd_fft;
-} burstfsk_state_t;
+
+	// callbacks
+	struct demod_code demod;
+	void *demod_arg;
+} preamble_acq_state_t;
 
 static inline unsigned next_power_of_2(unsigned v) {
 	unsigned r;
@@ -52,16 +54,16 @@ static inline int clip_int(int minv, int maxv, int v) {
 	return v;
 }
 
-static inline unsigned freq_to_pd_bin(burstfsk_state_t *st, int clip_margin, float f) {
+static inline unsigned freq_to_pd_bin(preamble_acq_state_t *st, int clip_margin, float f) {
 	unsigned fftlen = st->pd_fft_len;
 	return clip_int(clip_margin, fftlen-1-clip_margin,
 	round((0.5f + f / st->dm_fs) * fftlen));
 }
 
-void *burstfsk_init(burstfsk_config_t *conf) {
-	burstfsk_state_t *st;
-	st = malloc(sizeof(burstfsk_state_t));
-	memset(st, 0, sizeof(burstfsk_state_t));
+void *preamble_acq_init(const struct preamble_acq_conf *conf) {
+	preamble_acq_state_t *st;
+	st = malloc(sizeof(preamble_acq_state_t));
+	memset(st, 0, sizeof(preamble_acq_state_t));
 
 	st->dm_sps         = 4;
 	st->dm_fs          = conf->symbol_rate * st->dm_sps;
@@ -100,6 +102,7 @@ void *burstfsk_init(burstfsk_config_t *conf) {
 
 	st->dmi_n = DMI_N_MAX;
 
+#if 0
 	/* TODO more configurable etc */
 	unsigned i;
 	fskdemod_conf_t fskdemod_conf;
@@ -109,18 +112,19 @@ void *burstfsk_init(burstfsk_config_t *conf) {
 		fskdemod_conf.sps = st->dm_sps;
 		st->dmi_array[i] = fskdemod_init(&fskdemod_conf);
 	}
+#endif
 	return st;
 }
 
 
-static void burstfsk_1_execute(void *state, sample_t *samp, unsigned nsamp);
+static void preamble_acq_1_execute(void *state, sample_t *samp, unsigned nsamp);
 
 #define DMSAMP_MAX 256
-void burstfsk_execute(void *state, sample_t *insamp, unsigned n_insamp) {
+void preamble_acq_execute(void *state, sample_t *insamp, unsigned n_insamp) {
 	/* Input is samples from receiver.
 	 * This function frequency shifts and resamples the signal
-	 * and gives it to burstfsk_1_execute. */
-	burstfsk_state_t *st = (burstfsk_state_t*)state;
+	 * and gives it to preamble_acq_1_execute. */
+	preamble_acq_state_t *st = (preamble_acq_state_t*)state;
 	sample_t dmsamp[DMSAMP_MAX];
 	unsigned max_insamp = (DMSAMP_MAX-1) / st->inresamp_ratio;
 	while(n_insamp > 0) {
@@ -134,27 +138,27 @@ void burstfsk_execute(void *state, sample_t *insamp, unsigned n_insamp) {
 			freqshifted[i] = insamp[i] * oscout;
 		}
 		msresamp_crcf_execute(st->l_inresamp, freqshifted, n_insamp2, dmsamp, &ndms);
-		burstfsk_1_execute(state, dmsamp, ndms);
+		preamble_acq_1_execute(state, dmsamp, ndms);
 		insamp += n_insamp2;
 		n_insamp -= n_insamp2;
 	}
 }
 
-static void burstfsk_2_execute(void *state, sample_t *win);
+static void preamble_acq_2_execute(void *state, sample_t *win);
 
-static void burstfsk_1_execute(void *state, sample_t *samp, unsigned nsamp) {
-	burstfsk_state_t *st = (burstfsk_state_t*)state;
+static void preamble_acq_1_execute(void *state, sample_t *samp, unsigned nsamp) {
+	preamble_acq_state_t *st = (preamble_acq_state_t*)state;
 	unsigned samp_i;
 	for(samp_i=0; samp_i<nsamp; samp_i++) {
 		sample_t *win;
 		unsigned i;
 		for(i=0; i<st->dmi_n; i++)
-			fskdemod_execute(st->dmi_array[i], samp+samp_i, 1);
+			st->demod.execute(st->dmi_array[i], samp+samp_i, 1);
 		windowcf_push(st->l_pd_win, samp[samp_i]);
 		if(++st->pd_win_c >= st->pd_win_period) {
 			st->pd_win_c = 0;
 			windowcf_read(st->l_pd_win, &win);
-			burstfsk_2_execute(state, win);
+			preamble_acq_2_execute(state, win);
 		}
 	}
 }
@@ -201,10 +205,10 @@ static inline float angle_to_positive(float v) {
 	else return v;
 }
 
-static void burstfsk_2_execute(void *state, sample_t *win) {
+static void preamble_acq_2_execute(void *state, sample_t *win) {
 	/* This function gets successive windows of resampled signal
 	 * and does preamble detection. */
-	burstfsk_state_t *st = (burstfsk_state_t*)state;
+	preamble_acq_state_t *st = (preamble_acq_state_t*)state;
 	sample_t *ffti = st->pd_fft_in,  *ffto = st->pd_fft_out;
 	unsigned winn = st->pd_win_len,  fftn = st->pd_fft_len;
 	unsigned i;
@@ -281,4 +285,5 @@ static void burstfsk_2_execute(void *state, sample_t *win) {
 	st->pd_prev_peakc = peakc;
 }
 
+const struct acq_code preamble_acq_code = { preamble_acq_init, preamble_acq_execute };
 
