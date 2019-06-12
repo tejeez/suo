@@ -1,55 +1,70 @@
 #include "common.h"
-#include "preamble_acq.h"
-#include "fsk_demod.h"
-#include "syncword_deframer.h"
+#include "simple_receiver.h"
 #include "efrk7_decoder.h"
 #include <stdio.h>
 
-void *printf_output_init(const void *conf)
+struct test_output {
+	struct decoder_code decoder;
+	void *decoder_arg;
+};
+
+void *test_output_init(const void *conf)
 {
 	(void)conf;
-	return NULL;
+	struct test_output *self = malloc(sizeof(struct test_output));
+	
+	self->decoder = efrk7_decoder_code;
+	self->decoder_arg = self->decoder.init(&efrk7_decoder_defaults);
+	return self;
 }
 
-int printf_output_packet(void *arg, uint8_t *bytes, size_t nbytes)
+
+int test_output_frame(void *arg, bit_t *bits, size_t nbits)
 {
-	(void)arg;
+	struct test_output *self = arg;
+	uint8_t decoded[0x200];
 	size_t i;
-	for(i = 0; i < nbytes; i++)
-		printf("%02x ", bytes[i]);
+	int ret;
+	
+	for(i = 0; i < nbits; i++)
+		printf("%d", bits[i]);
 	printf("\n");
+
+	ret = self->decoder.decode(self->decoder_arg, bits, nbits, decoded, 0x200);
+	if(ret >= 0) {
+		for(i = 0; i < (size_t)ret; i++)
+			printf("%02x ", decoded[i]);
+		printf("\n");
+	} else {
+		printf("Decode failed (%d)\n", ret);
+	}
 	return 0;
 }
 
-const struct output_code printf_output_code = { printf_output_init, printf_output_packet };
+
+const struct frame_output_code test_output_code = { test_output_init, test_output_frame };
+
+
+
 
 typedef unsigned char sample1_t[2];
 
 #define BUFLEN 4096
 int main() {
-	/*extern const struct acq_code      preamble_acq_code;
-	extern const struct demod_code    fskdemod_acq_code;
-	extern const struct deframer_code syncword_deframer_code;
-	extern const struct decoder_code  efrk7_decoder_code;*/
-	struct receiver_conf conf = {
-		.acq      = preamble_acq_code,
-		.acq_conf = &(const struct preamble_acq_conf){
-		},
-		.demod      = fsk_demod_code,
-		.demod_conf = &(const struct fsk_demod_conf){
-			.id = 4,
-			.sps = 4
-		},
-		.deframer      = syncword_deframer_code,
-		.deframer_conf = &(const struct syncword_deframer_conf){
-		},
-		.decoder      = efrk7_decoder_code,
-		.decoder_conf = &(const struct efrk7_decoder_conf){
-		},
-		.output      = printf_output_code,
-		.output_conf = NULL
+	struct simple_receiver_conf conf = {
+		.samplerate = 300000, .symbolrate = 10000,
+		.centerfreq = -8000,
+		.syncword = 0b010101011111011010001101, .synclen = 24,
+		.framelen = 304
 	};
-	void *rx = receiver_init(&conf);
+	struct receiver_code rx      = simple_receiver_code;
+
+	struct frame_output_code out = test_output_code;
+
+	void *out_arg = out.init(NULL);
+	void *rx_arg  = rx.init(&conf);
+
+	rx.set_callbacks(rx_arg, &out, out_arg);
 
 	sample1_t buf1[BUFLEN];
 	sample_t buf2[BUFLEN];
@@ -60,7 +75,7 @@ int main() {
 		for(i=0; i<n; i++)
 			buf2[i] = (float)buf1[i][0] - 127.4f
 			        +((float)buf1[i][1] - 127.4f)*I;
-		receiver_execute(rx, buf2, n);
+		rx.execute(rx_arg, buf2, n);
 	}
 
 	return 0;

@@ -9,7 +9,7 @@
 
 static const float pi2f = 6.2831853f;
 
-#define DMI_N_MAX 5
+#define MAX_DEMODULATORS 5
 typedef struct {
 	unsigned dm_sps;
 	float dm_fs, inresamp_ratio;
@@ -27,19 +27,17 @@ typedef struct {
 	float pd_prev_peakc, pd_prev_peak_bin, pd_prev_snr;
 	sample_t pd_prev_sb;
 
-	// demodulator instances
-	unsigned dmi_n, packet_num;
-	void *dmi_array[DMI_N_MAX];
-
 	// liquid-dsp objects (prefixed with l_)
 	nco_crcf l_ddc_nco;
 	msresamp_crcf l_inresamp;
 	windowcf l_pd_win;
 	fftplan l_pd_fft;
 
-	// callbacks
+	// Callbacks to demodulator instances
+	unsigned demod_n;
 	struct demod_code demod;
-	void *demod_arg;
+	void *demod_arg[MAX_DEMODULATORS];
+	unsigned packet_num;//TODO cleanup
 } preamble_acq_state_t;
 
 static inline unsigned next_power_of_2(unsigned v) {
@@ -149,16 +147,19 @@ static void preamble_acq_2_execute(void *state, sample_t *win);
 static void preamble_acq_1_execute(void *state, sample_t *samp, unsigned nsamp) {
 	preamble_acq_state_t *st = (preamble_acq_state_t*)state;
 	unsigned samp_i;
+	/* Split signal into windows, feed the windowed samples to preamble detection FFT
+	 * and then feed the first samples from each window to demodulator instances */
 	for(samp_i=0; samp_i<nsamp; samp_i++) {
 		sample_t *win;
-		unsigned i;
-		for(i=0; i<st->dmi_n; i++)
-			st->demod.execute(st->dmi_array[i], samp+samp_i, 1);
 		windowcf_push(st->l_pd_win, samp[samp_i]);
 		if(++st->pd_win_c >= st->pd_win_period) {
 			st->pd_win_c = 0;
 			windowcf_read(st->l_pd_win, &win);
 			preamble_acq_2_execute(state, win);
+			
+			unsigned i;
+			for(i=0; i<st->demod_n; i++)
+				st->demod.execute(st->demod_arg[i], win, st->pd_win_period);
 		}
 	}
 }

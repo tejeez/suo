@@ -7,22 +7,26 @@
 #include "common.h"
 #include "efrk7_decoder.h"
 
-typedef struct {
-	struct output_code output;
-	void *output_arg;
+struct efrk7 {
 	fec fecdecoder;
-} efrk7_t;
+};
 
-/*efrk7_t*/ void *efrk7_init(const void *confv) {
-	const struct efrk7_decoder_conf *conf = confv;
-	efrk7_t *s = malloc(sizeof(efrk7_t));
-	s->output = conf->output;
-	s->output_arg = conf->output_arg;
+
+const struct efrk7_decoder_conf efrk7_decoder_defaults = {
+	/* Configuration TODO */
+};
+
+
+static void *efrk7_init(const void *confv) {
+	//const struct efrk7_decoder_conf *conf = confv;
+	(void)confv;
+	struct efrk7 *s = malloc(sizeof(struct efrk7));
 	s->fecdecoder = fec_create(LIQUID_FEC_CONV_V27, NULL);
 	return s;
 }
 
-uint8_t swap_byte_bit_order(uint8_t v) {
+
+static uint8_t swap_byte_bit_order(uint8_t v) {
 	return
 	((0x80&v) >> 7) |
 	((0x40&v) >> 5) |
@@ -34,13 +38,18 @@ uint8_t swap_byte_bit_order(uint8_t v) {
 	((0x01&v) << 7);
 }
 
+
 #define PKT_BITS 304
 #define MSG_DEC_BYTES 18
-int efrk7_decode(efrk7_t *s, bit_t *pktb, int len) {
+static int efrk7_decode(void *arg, bit_t *pktb, size_t len, uint8_t *decoded, size_t max_decoded_len)
+{
+	struct efrk7 *s = arg;
+	if(len != PKT_BITS || max_decoded_len < MSG_DEC_BYTES) return -1;
 	int i;
-	if(len != PKT_BITS) return -1;
 	const int msg_rec_bytes = (PKT_BITS+7)/8;
-	uint8_t msg_rec[msg_rec_bytes], msg_dec[MSG_DEC_BYTES];
+	uint8_t msg_rec[msg_rec_bytes]/*, msg_dec[MSG_DEC_BYTES]*/;
+	uint8_t *msg_dec = decoded;
+
 	memset(msg_rec, 0, msg_rec_bytes);
 	// deinterleave
 	for(i = 0; i < PKT_BITS; i++) {
@@ -55,9 +64,10 @@ int efrk7_decode(efrk7_t *s, bit_t *pktb, int len) {
 		msg_dec[i] = swap_byte_bit_order(msg_dec[i]);
 	//unsigned a = crc_generate_key(LIQUID_CRC_16, msg_dec, 16);
 	//printf("crc=%02x ", a);
-	s->output.packet(s->output_arg, msg_dec, MSG_DEC_BYTES);
-	return 0;
+
+	return MSG_DEC_BYTES;
 }
+
 
 const struct decoder_code efrk7_decoder_code = { efrk7_init, efrk7_decode };
 

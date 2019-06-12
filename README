@@ -1,0 +1,23 @@
+This is a modem library which aims to be reasonably portable, modular
+and configurable in order to make to make modem implementations reusable
+for different applications.
+
+Another goal is to have good demodulation performance for weak signals
+to make it usable for applications such as satellite communication.
+
+The library defines interfaces based on function calls and callbacks
+to separate the less platform-dependent DSP code from the more platform
+depedent parts which interface to SDR hardware and protocol stacks.
+Function calls between parts happen through function pointers placed in
+structs, so that parts of the code can be changed.
+
+For development purposes, there is a simple receiver implementation
+for FSK packet signals. It's based on FM demodulation, so it does not
+have the best weak-signal performance, but it helps test the interfaces
+between things before a better receiver works.
+
+There is also a better, modular receiver implementation which tries
+to separate preamble detection (or more generally initial acquisition),
+demodulation (including tracking of symbol sync, etc)
+and deframing from each other.
+It is still undergoing some refactoring and does not currently compile.

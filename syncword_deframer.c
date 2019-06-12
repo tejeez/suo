@@ -17,7 +17,7 @@ typedef uint64_t bw_t; // bit window
 #define SYNC_THRESHOLD 40
 #define PKT_BITS 304
 #define BITS_STORED (SYNC_WIN_END+PKT_BITS+100)
-typedef struct {
+struct deframer {
 	bw_t syncword, syncmask, last_bits;
 	int bit_num;
 	int syncp, running, least_errs, least_errs_p;
@@ -25,9 +25,10 @@ typedef struct {
 	int pbits[BITS_STORED];
 
 	/* callbacks */
-	void *pkt_arg;
-	void (*pkt_received)(void *arg, int *bits, int len);
-} deframer_t;
+	struct frame_output_code output;
+	void *output_arg;
+	void (*output_f)(void *arg, int *bits, int len);
+};
 
 
 void deframer_reset(deframer_t *s) {
@@ -43,8 +44,10 @@ void deframer_reset(deframer_t *s) {
 void *efrk7_init();
 void efrk7_decode();
 
-deframer_t *deframer_init() {
-	deframer_t *s = malloc(sizeof(deframer_t));
+deframer_t *deframer_init(struct syncword_deframer_conf *conf)
+{
+	deframer_t *self = malloc(sizeof(struct deframer));
+	memset(self, 0, sizeof(struct deframer));
 
 	/* TODO find neat way to change packet handler */
 	s->pkt_arg = efrk7_init();
@@ -56,7 +59,15 @@ deframer_t *deframer_init() {
 	deframer_reset(s);
 	s->running = 0;
 
-	return s;
+	return self;
+}
+
+
+int deframer_set_callbacks(void *arg, const struct frame_output_code *output, void *output_arg)
+{
+	struct deframer *self = arg;
+	self->output = *frame_output_code;
+	self->output_arg = output_arg;
 }
 
 
