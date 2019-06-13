@@ -1,12 +1,8 @@
-#include <complex.h>
-#include <math.h>
+#include "simple_receiver.h"
 #include <string.h>
-#include <stdlib.h>
-#include <liquid/liquid.h>
 #include <assert.h>
 #include <stdio.h> // for debug prints only
-#include "common.h"
-#include "simple_receiver.h"
+#include <liquid/liquid.h>
 
 #define FRAMELEN_MAX 0x800
 const float pi2f = 6.283185307179586;

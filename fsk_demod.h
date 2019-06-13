@@ -1,6 +1,6 @@
 #ifndef FSKDEMOD_H
 #define FSKDEMOD_H
-#include "common.h"
+#include "suo.h"
 
 struct fsk_demod_conf {
 	unsigned id, sps;

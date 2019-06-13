@@ -1,6 +1,6 @@
 #ifndef SYNCWORD_DEFRAMER_H
 #define SYNCWORD_DEFRAMER_H
-#include "common.h"
+#include "suo.h"
 
 struct syncword_deframer_conf {
 	/* Everything is hardcoded for now. No configuration. */

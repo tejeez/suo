@@ -1,6 +1,6 @@
-#ifndef preamble_acq_H
-#define preamble_acq_H
-#include "common.h"
+#ifndef PREAMBLE_ACQ_H
+#define PREAMBLE_ACQ_H
+#include "suo.h"
 
 struct preamble_acq_conf {
 	float input_sample_rate, center_freq, symbol_rate;

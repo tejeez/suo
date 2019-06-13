@@ -1,10 +1,8 @@
+#include "syncword_deframer.h"
 #include <string.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <assert.h>
 /*#include <stdio.h>
 #include <liquid/liquid.h>*/
-#include "common.h"
 
 typedef uint64_t bw_t; // bit window
 

@@ -1,6 +1,6 @@
 #ifndef EFRK7_DECODER_H
 #define EFRK7_DECODER_H
-#include "common.h"
+#include "suo.h"
 
 struct efrk7_decoder_conf {
 	/* Configuration TODO */

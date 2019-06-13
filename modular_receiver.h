@@ -1,9 +1,6 @@
 #ifndef MODULAR_RECEIVER_H
 #define MODULAR_RECEIVER_H
-#include <stdlib.h>
-#include <stdint.h>
-#include <complex.h>
-#include "common.h"
+#include "suo.h"
 
 struct acq_code {
 	void *(*init)    (const void *conf);

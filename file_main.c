@@ -1,4 +1,4 @@
-#include "common.h"
+#include "suo.h"
 #include "simple_receiver.h"
 #include "efrk7_decoder.h"
 #include <stdio.h>

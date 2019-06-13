@@ -1,11 +1,7 @@
-#include <string.h>
-#include <stdint.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <liquid/liquid.h>
-#include "common.h"
 #include "efrk7_decoder.h"
+#include <string.h>
+#include <assert.h>
+#include <liquid/liquid.h>
 
 struct efrk7 {
 	fec fecdecoder;

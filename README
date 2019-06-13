@@ -9,7 +9,8 @@ The library defines interfaces based on function calls and callbacks
 to separate the less platform-dependent DSP code from the more platform
 depedent parts which interface to SDR hardware and protocol stacks.
 Function calls between parts happen through function pointers placed in
-structs, so that parts of the code can be changed.
+structs, so that parts of the code can be changed by just assigning
+a different value to a function pointer struct.
 
 For development purposes, there is a simple receiver implementation
 for FSK packet signals. It's based on FM demodulation, so it does not
@@ -19,5 +20,19 @@ between things before a better receiver works.
 There is also a better, modular receiver implementation which tries
 to separate preamble detection (or more generally initial acquisition),
 demodulation (including tracking of symbol sync, etc)
-and deframing from each other.
+and deframing from each other, although the parts are still quite
+closely tied together to allow also feedback between them.
 It is still undergoing some refactoring and does not currently compile.
+
+For the platform-dependent "glue" part, there is file_main which just
+reads samples from stdin and prints the decoded packets to stdout.
+This is useful for testing with recorded or simulated signals read from
+a file. It is also possible to pipe signals from a receiver into it.
+Another one is soapy_main which interfaces to SDRs through the SoapySDR
+library. Output of decoded frames by something like ZeroMQ is planned.
+
+It would also be possible to write GNU Radio wrappers to allow running
+the modems as a part of GNU Radio based applications.
+Another plan is to try running the library on a microcontroller-based
+embedded SDR device which is not running any general purpose operating
+system.

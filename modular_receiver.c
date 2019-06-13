@@ -1,4 +1,4 @@
-#include "common.h"
+#include "modular_receiver.h"
 
 struct receiver_state {
 #if 0

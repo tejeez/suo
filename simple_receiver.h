@@ -1,6 +1,6 @@
 #ifndef SIMPLE_RECEIVER_H
 #define SIMPLE_RECEIVER_H
-#include "common.h"
+#include "suo.h"
 
 struct simple_receiver_conf {
 	float samplerate, symbolrate, centerfreq;

@@ -2,19 +2,20 @@ CC=gcc
 #CFLAGS=-Wall -Wextra -Wdouble-promotion -pedantic -std=c99 -O3
 CFLAGS=-Wall -Wextra -Wdouble-promotion -std=c99 -O3
 LIBS=-lliquid -lm
-MAINOBJS=main.o receiver.o preamble_acq.o fsk_demod.o syncword_deframer.o efrk7_decoder.o
-SIMPLEOBJS=main.o simple_receiver.o efrk7_decoder.o
 
-simple: $(SIMPLEOBJS)
-	$(CC) $(SIMPLEOBJS) -o $@ $(LIBS)
+#OBJS=modular_receiver.o preamble_acq.o fsk_demod.o syncword_deframer.o efrk7_decoder.o basic_decoder.o
+OBJS=simple_receiver.o efrk7_decoder.o basic_decoder.o
 
-all: main
+all: soapy_main file_main
 
-main: $(MAINOBJS)
-	$(CC) $(MAINOBJS) -o $@ $(LIBS)
+soapy_main: soapy_main.o $(OBJS)
+	$(CC) soapy_main.o $(OBJS) -o $@ $(LIBS) -lSoapySDR
+
+file_main: file_main.o $(OBJS)
+	$(CC) file_main.o $(OBJS) -o $@ $(LIBS)
 
 clean:
-	rm main $(MAINOBJS) $(SIMPLEOBJS)
+	rm file_main soapy_main ./*.o
 
 %.o: %.c *.h
 	$(CC) $(CFLAGS) -c $< -o $@

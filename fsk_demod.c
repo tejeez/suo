@@ -1,11 +1,8 @@
-#include <liquid/liquid.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <stdio.h>
-#include <assert.h>
-#include <unistd.h>
 #include "fsk_demod.h"
+#include <string.h>
+#include <assert.h>
+//#include <stdio.h>
+#include <liquid/liquid.h>
 
 /*static const float pi2f = 6.2831853f;*/
 

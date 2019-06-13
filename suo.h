@@ -1,8 +1,10 @@
-#ifndef MM_COMMON_H
-#define MM_COMMON_H
+#ifndef SUO_H
+#define SUO_H
 #include <stdlib.h>
 #include <stdint.h>
 #include <complex.h>
+#include <math.h>
+#include <stdbool.h>
 
 typedef float complex sample_t;
 typedef uint8_t bit_t; // TODO: choose type and representation for soft decisions
