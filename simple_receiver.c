@@ -4,8 +4,8 @@
 #include <stdio.h> // for debug prints only
 #include <liquid/liquid.h>
 
-#define FRAMELEN_MAX 0x800
-const float pi2f = 6.283185307179586;
+#define FRAMELEN_MAX 0x900
+static const float pi2f = 6.283185307179586f;
 
 struct simple_receiver {
 	/* Configuration */

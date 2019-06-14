@@ -1,6 +1,7 @@
 #include "suo.h"
 #include "simple_receiver.h"
 #include "basic_decoder.h"
+#include "simple_transmitter.h"
 #include <stdio.h>
 /* __USE_POSIX is needed for "struct sigaction" when
  * compiled with  -std=c99. This is probably not the right way.
@@ -12,6 +13,8 @@
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
 
+
+/* Receiver testing things */
 struct test_output {
 	struct decoder_code decoder;
 	void *decoder_arg;
@@ -62,6 +65,36 @@ const struct frame_output_code test_output_code = { test_output_init, test_outpu
 
 
 
+/* Transmitter testing things */
+void *test_framer_init(const void *conf)
+{
+	(void)conf;
+	return NULL;
+}
+
+
+int test_framer_get_frame(void *arg, bit_t *bits, size_t maxbits, struct transmitter_metadata *metadata)
+{
+	(void)arg;
+	if(metadata->timestamp % 1000000000LL < 100000000LL) {
+		size_t len = 1000;
+		if(len > maxbits) len = maxbits;
+		size_t i;
+		for(i=0; i<len; i++)
+			bits[i] = 1 & rand();
+		return len;
+	}
+	return -1;
+}
+
+
+const struct framer_code test_framer_code = { test_framer_init, test_framer_get_frame };
+
+
+
+/* Main loop with SoapySDR interfacing */
+
+
 
 void print_fail(const char *function, int ret)
 {
@@ -87,9 +120,9 @@ int main()
 	// TODO: configuration file or command line arguments
 	const float
 		sdr_samplerate = 250000,
-		sdr_centerfreq = 437e6, sdr_tx_centerfreq = 437.2e6,
+		sdr_centerfreq = 437e6, sdr_tx_centerfreq = 437e6,
 		receivefreq = 437.035e6 /*437.0175e6*/,
-		/*transmitfreq = 437.06e6,*/
+		transmitfreq = 437.06e6,
 		sdr_gain = 40, sdr_tx_gain = 60;
 	size_t sdr_channel = 0, sdr_tx_channel = 0;
 	const char *sdr_driver = "uhd", *sdr_antenna = "TX/RX", *sdr_tx_antenna = "TX/RX";
@@ -97,7 +130,7 @@ int main()
 
 	const long long rx_tx_latency_ns = 50000000;
 
-	struct simple_receiver_conf conf = {
+	struct simple_receiver_conf rxconf = {
 		.samplerate = sdr_samplerate, .symbolrate = 9600,
 		.centerfreq = receivefreq - sdr_centerfreq,
 		.syncword = 0x1ACFFC1D, .synclen = 32,
@@ -105,12 +138,21 @@ int main()
 	};
 	struct receiver_code receiver = simple_receiver_code;
 
+	struct simple_transmitter_conf txconf = {
+		.samplerate = sdr_samplerate, .symbolrate = 9600,
+		.centerfreq = transmitfreq - sdr_tx_centerfreq,
+		.modindex = 0.5
+	};
+	struct transmitter_code transmitter = simple_transmitter_code;
+
 	struct frame_output_code out = test_output_code;
 
 	void *out_arg = out.init(NULL);
-	void *receiver_arg = receiver.init(&conf);
+	void *receiver_arg = receiver.init(&rxconf);
+	void *transmitter_arg = transmitter.init(&txconf);
 
 	receiver.set_callbacks(receiver_arg, &out, out_arg);
+	transmitter.set_callbacks(transmitter_arg, &test_framer_code, NULL);
 
 
 	struct sigaction sigact;
@@ -207,16 +249,16 @@ int main()
 		SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
 			txstream, 0, 0, 0);
 
-	int asdf=0;
+	bool tx_burst_going = 0;
 	while(running) {
 		sample_t rxbuf[BUFLEN];
 		sample_t txbuf[BUFLEN];
 		void *rxbuffs[] = { rxbuf };
 		const void *txbuffs[] = { txbuf };
 		int flags = 0;
-		long long timestamp = 0;
+		long long rx_timestamp = 0;
 		int ret = SoapySDRDevice_readStream(sdr, rxstream,
-			rxbuffs, BUFLEN, &flags, &timestamp, 200000);
+			rxbuffs, BUFLEN, &flags, &rx_timestamp, 200000);
 		// TODO: implement metadata and add timestamps there
 		if(ret > 0) {
 			receiver.execute(receiver_arg, rxbuf, ret);
@@ -224,23 +266,49 @@ int main()
 			print_fail("SoapySDRDevice_readStream", ret);
 		}
 
-		++asdf;
-		if((asdf&3) <= 2) {
-			int i;
-			for(i=0; i<BUFLEN; i++) txbuf[i] = sin(i);
-			flags = SOAPY_SDR_HAS_TIME/* | SOAPY_SDR_END_BURST*/;
-			//if((asdf&3)==3) flags |= SOAPY_SDR_END_BURST;
-			timestamp += rx_tx_latency_ns;
-			ret = SoapySDRDevice_writeStream(sdr, txstream,
-				txbuffs, BUFLEN, &flags, timestamp, 200000);
-			if(ret <= 0)
-				print_fail("SoapySDRDevice_writeStream", ret);
-		}
-		if((asdf&3) == 3) {
-			flags = SOAPY_SDR_HAS_TIME | SOAPY_SDR_END_BURST;
-			timestamp += rx_tx_latency_ns;
-			ret = SoapySDRDevice_writeStream(sdr, txstream,
-				txbuffs, 0, &flags, timestamp, 200000);
+		if(transmit_on) {
+			/* Handling of TX timestamps and burst start/end
+			 * might change. Not sure if this is the best way.
+			 * Maybe the modem should tell when a burst ends
+			 * in an additional field in the metadata struct? */
+			int ntx;
+			struct transmitter_metadata tx_metadata = {
+				.timestamp = rx_timestamp + rx_tx_latency_ns
+			};
+			ntx = transmitter.execute(transmitter_arg, txbuf, BUFLEN, &tx_metadata);
+			if(ntx > 0) {
+				flags = SOAPY_SDR_HAS_TIME;
+				/* If there were less than the maximum number of samples,
+				 * assume a burst has ended */
+				if(ntx < BUFLEN) {
+					flags |= SOAPY_SDR_END_BURST;
+					tx_burst_going = 0;
+				} else {
+					tx_burst_going = 1;
+				}
+
+				ret = SoapySDRDevice_writeStream(sdr, txstream,
+					txbuffs, BUFLEN, &flags,
+					tx_metadata.timestamp, 100000);
+				if(ret <= 0)
+					print_fail("SoapySDRDevice_writeStream", ret);
+			} else {
+				/* Nothing to transmit.
+				 * If end of burst flag wasn't sent in last round,
+				 * send it now together with one dummy sample.
+				 * One sample is sent because trying to send
+				 * zero samples gave a timeout error. */
+				if(tx_burst_going) {
+					txbuf[0] = 0;
+					flags = SOAPY_SDR_HAS_TIME | SOAPY_SDR_END_BURST;
+					ret = SoapySDRDevice_writeStream(sdr, txstream,
+						txbuffs, 1, &flags,
+						rx_timestamp + rx_tx_latency_ns, 100000);
+					if(ret <= 0)
+						print_fail("SoapySDRDevice_writeStream (end of burst)", ret);
+				}
+				tx_burst_going = 0;
+			}
 		}
 	}
 

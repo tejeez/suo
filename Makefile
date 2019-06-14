@@ -4,7 +4,7 @@ CFLAGS=-Wall -Wextra -Wdouble-promotion -std=c99 -O3
 LIBS=-lliquid -lm
 
 #OBJS=modular_receiver.o preamble_acq.o fsk_demod.o syncword_deframer.o efrk7_decoder.o basic_decoder.o
-OBJS=simple_receiver.o efrk7_decoder.o basic_decoder.o
+OBJS=simple_receiver.o efrk7_decoder.o basic_decoder.o simple_transmitter.o
 
 all: soapy_main file_main
 
