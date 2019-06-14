@@ -18,6 +18,7 @@ struct simple_receiver {
 	//uint32_t total_samples;
 	uint64_t latest_bits;
 	unsigned framepos, totalbits;
+	bool receiving_frame;
 
 	/* liquid-dsp objects */
 	nco_crcf l_nco;
@@ -71,13 +72,17 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 {
 	unsigned framepos = self->framepos;
 	const unsigned framelen = self->c.framelen;
+	bool receiving_frame = self->receiving_frame;
 
 	if(framepos < framelen) {
 		self->framebuf[framepos] = bit;
 		framepos++;
 		if(framepos == framelen) {
 			self->output.frame(self->output_arg, self->framebuf, framelen);
+			receiving_frame = 0;
 		}
+	} else {
+		receiving_frame = 0;
 	}
 
 	/* Look for syncword */
@@ -85,18 +90,26 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 	latest_bits <<= 1;
 	latest_bits |= bit;
 	self->latest_bits = latest_bits;
-	unsigned syncerrs = __builtin_popcountll((latest_bits & self->syncmask) ^ self->c.syncword);
+	/* Don't look for new syncword inside a frame */
+	if(!receiving_frame) {
+		unsigned syncerrs = __builtin_popcountll((latest_bits & self->syncmask) ^ self->c.syncword);
 
-	if(syncerrs <= 2) {
-		/* Syncword found, start saving bits when next bit arrives */
-		framepos = 0;
+		if(syncerrs <= 3) {
+			/* Syncword found, start saving bits when next bit arrives */
+			framepos = 0;
+			receiving_frame = 1;
+#if 0
+			printf("_%d_", syncerrs);
+#endif
+		}
 	}
 
+	self->receiving_frame = receiving_frame;
 	self->framepos = framepos;
 
 #if 0
 	if((self->totalbits & 63) == 0) putchar('\n');
-	putchar(bit?'x':' ');
+	putchar(bit?'x':'.');
 #endif
 
 	self->totalbits++;
