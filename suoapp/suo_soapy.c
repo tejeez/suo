@@ -1,14 +1,9 @@
-#include "suo.h"
-#include "simple_receiver.h"
-#include "basic_decoder.h"
-#include "simple_transmitter.h"
+#include "libsuo/suo.h"
+#include "libsuo/simple_receiver.h"
+#include "libsuo/basic_decoder.h"
+#include "libsuo/simple_transmitter.h"
+
 #include <stdio.h>
-/* __USE_POSIX is needed for "struct sigaction" when
- * compiled with  -std=c99. This is probably not the right way.
- * Only tested on Linux and gcc, might not work on other platforms.
- * Maybe this one file should be compiled with different compiler
- * flags instead? */
-#define __USE_POSIX
 #include <signal.h>
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
@@ -25,8 +20,11 @@ void *test_output_init(const void *conf)
 	(void)conf;
 	struct test_output *self = malloc(sizeof(struct test_output));
 
+	struct basic_decoder_conf decconf =  {
+		.lsb_first = 0
+	};
 	self->decoder = basic_decoder_code;
-	self->decoder_arg = self->decoder.init(&basic_decoder_defaults);
+	self->decoder_arg = self->decoder.init(&decconf);
 	return self;
 }
 
@@ -76,12 +74,16 @@ void *test_framer_init(const void *conf)
 int test_framer_get_frame(void *arg, bit_t *bits, size_t maxbits, struct transmitter_metadata *metadata)
 {
 	(void)arg;
+	const uint8_t packet[] = {
+		0x55,0x55,0x55,0x55,0x55,0x55,
+		0x1A,0xCF,0xFC,0x1D,
+		't','e','s','t','i',0,0,0,0 };
 	if(metadata->timestamp % 1000000000LL < 100000000LL) {
-		size_t len = 1000;
+		size_t len = sizeof(packet)*8;
 		if(len > maxbits) len = maxbits;
 		size_t i;
 		for(i=0; i<len; i++)
-			bits[i] = 1 & rand();
+			bits[i] = 1 & (packet[i/8] >> (7&(7-i)));
 		return len;
 	}
 	return -1;
@@ -114,18 +116,27 @@ void sighandler(int sig)
 
 typedef unsigned char sample1_t[2];
 
+struct suoapp_conf *conf = NULL;
+
 #define BUFLEN 4096
 int main()
 {
 	// TODO: configuration file or command line arguments
 	const float
+#if 1
 		sdr_samplerate = 250000,
 		sdr_centerfreq = 437e6, sdr_tx_centerfreq = 437e6,
 		receivefreq = 437.035e6 /*437.0175e6*/,
-		transmitfreq = 437.06e6,
-		sdr_gain = 40, sdr_tx_gain = 60;
+		transmitfreq = 437.035e6,
+#else
+		sdr_samplerate = 500000,
+		sdr_centerfreq = 2395.1e6, sdr_tx_centerfreq = 2395e6,
+		receivefreq = 2394.993e6,
+		transmitfreq = 437.035e6,
+#endif
+		sdr_gain = 60, sdr_tx_gain = 60;
 	size_t sdr_channel = 0, sdr_tx_channel = 0;
-	const char *sdr_driver = "uhd", *sdr_antenna = "TX/RX", *sdr_tx_antenna = "TX/RX";
+	const char *sdr_driver = "xtrx", *sdr_antenna = "LNAW", *sdr_tx_antenna = "BAND1";
 	bool transmit_on = 1;
 
 	const long long rx_tx_latency_ns = 50000000;
@@ -133,8 +144,8 @@ int main()
 	struct simple_receiver_conf rxconf = {
 		.samplerate = sdr_samplerate, .symbolrate = 9600,
 		.centerfreq = receivefreq - sdr_centerfreq,
-		.syncword = 0x1ACFFC1D, .synclen = 32,
-		.framelen = (3+30)*8
+		.syncword = 0x55F68D, .synclen = 24,
+		.framelen = 16*8
 	};
 	struct receiver_code receiver = simple_receiver_code;
 
@@ -153,7 +164,6 @@ int main()
 
 	receiver.set_callbacks(receiver_arg, &out, out_arg);
 	transmitter.set_callbacks(transmitter_arg, &test_framer_code, NULL);
-
 
 	struct sigaction sigact;
 	sigact.sa_handler = sighandler;
@@ -178,6 +188,12 @@ int main()
 	}
 
 	fprintf(stderr, "Configuring RX\n");
+	/* On some devices (e.g. xtrx), sample rate needs to be set before
+	 * center frequency or the driver crashes */
+	SOAPYCHECK(SoapySDRDevice_setSampleRate,
+		sdr, SOAPY_SDR_RX, sdr_channel,
+		sdr_samplerate);
+
 	SOAPYCHECK(SoapySDRDevice_setFrequency,
 		sdr, SOAPY_SDR_RX, sdr_channel,
 		sdr_centerfreq, NULL);
@@ -190,10 +206,6 @@ int main()
 	SOAPYCHECK(SoapySDRDevice_setGain,
 		sdr, SOAPY_SDR_RX, sdr_channel,
 		sdr_gain);
-
-	SOAPYCHECK(SoapySDRDevice_setSampleRate,
-		sdr, SOAPY_SDR_RX, sdr_channel,
-		sdr_samplerate);
 
 	if(transmit_on) {
 		fprintf(stderr, "Configuring TX\n");

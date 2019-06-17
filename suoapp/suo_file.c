@@ -1,6 +1,6 @@
-#include "suo.h"
-#include "simple_receiver.h"
-#include "basic_decoder.h"
+#include "libsuo/suo.h"
+#include "libsuo/simple_receiver.h"
+#include "libsuo/basic_decoder.h"
 #include <stdio.h>
 
 struct test_output {
@@ -12,9 +12,13 @@ void *test_output_init(const void *conf)
 {
 	(void)conf;
 	struct test_output *self = malloc(sizeof(struct test_output));
-	
+
 	self->decoder = basic_decoder_code;
-	self->decoder_arg = self->decoder.init(&basic_decoder_defaults);
+
+	struct basic_decoder_conf decconf =  {
+		.lsb_first = 1
+	};
+	self->decoder_arg = self->decoder.init(&decconf);
 	return self;
 }
 
@@ -54,15 +58,18 @@ const struct frame_output_code test_output_code = { test_output_init, test_outpu
 
 
 
-typedef unsigned char sample1_t[2];
+typedef uint8_t cu8_t[2];
+typedef int16_t cs16_t[2];
+enum inputformat { FORMAT_CU8, FORMAT_CS16 };
 
 #define BUFLEN 4096
 int main() {
+	enum inputformat inputformat = FORMAT_CS16;
 	struct simple_receiver_conf conf = {
-		.samplerate = 300000, .symbolrate = 9600,
-		.centerfreq = 17500,
-		.syncword = 0x1ACFFC1D, .synclen = 32,
-		.framelen = (3+30)*8
+		.samplerate = 1000000, .symbolrate = 9600,
+		.centerfreq = 193000,
+		.syncword = 0x55F68D, .synclen = 24,
+		.framelen = 16*8
 	};
 	struct receiver_code rx      = simple_receiver_code;
 
@@ -73,15 +80,24 @@ int main() {
 
 	rx.set_callbacks(rx_arg, &out, out_arg);
 
-	sample1_t buf1[BUFLEN];
 	sample_t buf2[BUFLEN];
 	for(;;) {
 		size_t n, i;
-		n = fread(buf1, sizeof(sample1_t), BUFLEN, stdin);
-		if(n == 0) break;
-		for(i=0; i<n; i++)
-			buf2[i] = (float)buf1[i][0] - 127.4f
-			        +((float)buf1[i][1] - 127.4f)*I;
+		if(inputformat == FORMAT_CU8) {
+			cu8_t buf1[BUFLEN];
+			n = fread(buf1, sizeof(cu8_t), BUFLEN, stdin);
+			if(n == 0) break;
+			for(i=0; i<n; i++)
+				buf2[i] = (float)buf1[i][0] - 127.4f
+					+((float)buf1[i][1] - 127.4f)*I;
+		} else {
+			cs16_t buf1[BUFLEN];
+			n = fread(buf1, sizeof(cs16_t), BUFLEN, stdin);
+			if(n == 0) break;
+			for(i=0; i<n; i++)
+				buf2[i] = (float)buf1[i][0]
+					+((float)buf1[i][1])*I;
+		}
 		rx.execute(rx_arg, buf2, n);
 	}
 

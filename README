@@ -24,15 +24,26 @@ and deframing from each other, although the parts are still quite
 closely tied together to allow also feedback between them.
 It is still undergoing some refactoring and does not currently compile.
 
-For the platform-dependent "glue" part, there is file_main which just
-reads samples from stdin and prints the decoded packets to stdout.
-This is useful for testing with recorded or simulated signals read from
-a file. It is also possible to pipe signals from a receiver into it.
+Applications to run the modems are under suoapp/ directory. They have
+been developed on Linux but might work on other systems as well.
+There is suo_file which just reads samples from stdin and prints
+decoded packets to stdout. This is useful for testing with recorded or
+simulated signals read from a file.
+It is also possible to pipe signals from a receiver into it.
+
 Another one is soapy_main which interfaces to SDRs through the SoapySDR
-library. Output of decoded frames by something like ZeroMQ is planned.
+library. It has been tested on USRP, rtl-sdr and xtrx.
+Output of decoded frames by something like ZeroMQ is planned.
 
 It would also be possible to write GNU Radio wrappers to allow running
 the modems as a part of GNU Radio based applications.
 Another plan is to try running the library on a microcontroller-based
 embedded SDR device which is not running any general purpose operating
 system.
+
+
+To compile:
+- Install liquid-dsp from https://github.com/jgaeddert/liquid-dsp
+- Install SoapySDR. On Ubuntu: apt install libsoapysdr-dev
+- Install driver for your SDR device
+- Run make under suoapp directory

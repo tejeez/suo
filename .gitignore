@@ -1,4 +1,4 @@
 *.o
-main
+*.a
 core
 *.swp
