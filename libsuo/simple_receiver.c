@@ -28,7 +28,7 @@ struct simple_receiver {
 	symsync_rrrf l_symsync;
 
 	/* Callbacks */
-	struct frame_output_code output;
+	struct rx_output_code output;
 	void *output_arg;
 
 	/* Buffers */
@@ -66,6 +66,14 @@ static void *simple_receiver_init(const void *conf_v)
 	symsync_rrrf_set_lf_bw(self->l_symsync, 0.01f);
 
 	return self;
+}
+
+
+static int simple_receiver_destroy(void *arg)
+{
+	/* TODO (low priority since memory gets freed in the end anyway) */
+	(void)arg;
+	return 0;
 }
 
 
@@ -117,7 +125,7 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 }
 
 
-static int simple_receiver_execute(void *arg, sample_t *samples, size_t nsamp)
+static int simple_receiver_execute(void *arg, const sample_t *samples, size_t nsamp)
 {
 	struct simple_receiver *self = arg;
 
@@ -172,7 +180,7 @@ static int simple_receiver_execute(void *arg, sample_t *samples, size_t nsamp)
 
 
 
-static int simple_receiver_set_callbacks(void *arg, const struct frame_output_code *output, void *output_arg)
+static int simple_receiver_set_callbacks(void *arg, const struct rx_output_code *output, void *output_arg)
 {
 	struct simple_receiver *self = arg;
 	self->output = *output;
@@ -181,4 +189,4 @@ static int simple_receiver_set_callbacks(void *arg, const struct frame_output_co
 }
 
 
-const struct receiver_code simple_receiver_code = { simple_receiver_init, simple_receiver_set_callbacks, simple_receiver_execute };
+const struct receiver_code simple_receiver_code = { simple_receiver_init, simple_receiver_destroy, simple_receiver_set_callbacks, simple_receiver_execute };

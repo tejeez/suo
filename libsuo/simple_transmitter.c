@@ -22,8 +22,8 @@ struct simple_transmitter {
 	nco_crcf l_nco;
 
 	/* Callbacks */
-	struct framer_code framer;
-	void *framer_arg;
+	struct tx_input_code input;
+	void *input_arg;
 
 	/* Buffers */
 	bit_t framebuf[FRAMELEN_MAX];
@@ -51,11 +51,19 @@ static void *init(const void *conf_v)
 }
 
 
-static int set_callbacks(void *arg, const struct framer_code *framer, void *framer_arg)
+static int destroy(void *arg)
+{
+	/* TODO (low priority since memory gets freed in the end anyway) */
+	(void)arg;
+	return 0;
+}
+
+
+static int set_callbacks(void *arg, const struct tx_input_code *input, void *input_arg)
 {
 	struct simple_transmitter *self = arg;
-	self->framer = *framer;
-	self->framer_arg = framer_arg;
+	self->input = *input;
+	self->input_arg = input_arg;
 	return 0;
 }
 
@@ -88,7 +96,7 @@ static int execute(void *arg, sample_t *samples, size_t maxsamples, struct trans
 
 	if(!transmitting) {
 		int ret;
-		ret = self->framer.get_frame(self->framer_arg, framebuf, FRAMELEN_MAX, metadata);
+		ret = self->input.get_frame(self->input_arg, framebuf, FRAMELEN_MAX, metadata);
 		if(ret > 0) {
 			assert(ret <= FRAMELEN_MAX);
 			transmitting = 1;
@@ -129,5 +137,5 @@ static int execute(void *arg, sample_t *samples, size_t maxsamples, struct trans
 }
 
 
-const struct transmitter_code simple_transmitter_code = { init, set_callbacks, execute };
+const struct transmitter_code simple_transmitter_code = { init, destroy, set_callbacks, execute };
 

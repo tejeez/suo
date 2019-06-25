@@ -1,7 +1,10 @@
 #include "libsuo/suo.h"
 #include "libsuo/simple_receiver.h"
-#include "libsuo/basic_decoder.h"
 #include "libsuo/simple_transmitter.h"
+#include "libsuo/basic_decoder.h"
+#include "libsuo/basic_encoder.h"
+//#include "test_interface.h"
+#include "zmq_interface.h"
 
 #include <stdio.h>
 #include <signal.h>
@@ -9,100 +12,17 @@
 #include <SoapySDR/Formats.h>
 
 
-/* Receiver testing things */
-struct test_output {
-	struct decoder_code decoder;
-	void *decoder_arg;
-};
-
-void *test_output_init(const void *conf)
-{
-	(void)conf;
-	struct test_output *self = malloc(sizeof(struct test_output));
-
-	struct basic_decoder_conf decconf =  {
-		.lsb_first = 0
-	};
-	self->decoder = basic_decoder_code;
-	self->decoder_arg = self->decoder.init(&decconf);
-	return self;
-}
-
-
-int test_output_frame(void *arg, bit_t *bits, size_t nbits)
-{
-	struct test_output *self = arg;
-	uint8_t decoded[0x200];
-	size_t i;
-	int ret;
-
-	for(i = 0; i < nbits; i++)
-		printf("%d", bits[i]);
-	printf("\n");
-
-	ret = self->decoder.decode(self->decoder_arg, bits, nbits, decoded, 0x200);
-	if(ret >= 0) {
-		for(i = 0; i < (size_t)ret; i++)
-			printf("%02x ", decoded[i]);
-		printf("\n");
-		/* Print those which are valid ASCII characters */
-		for(i = 0; i < (size_t)ret; i++) {
-			char c = (char)decoded[i];
-			if(c >= 32 && c <= 126)
-				putchar(c);
-		}
-		printf("\n");
-	} else {
-		printf("Decode failed (%d)\n", ret);
-	}
-	return 0;
-}
-
-
-const struct frame_output_code test_output_code = { test_output_init, test_output_frame };
-
-
-
-/* Transmitter testing things */
-void *test_framer_init(const void *conf)
-{
-	(void)conf;
-	return NULL;
-}
-
-
-int test_framer_get_frame(void *arg, bit_t *bits, size_t maxbits, struct transmitter_metadata *metadata)
-{
-	(void)arg;
-	const uint8_t packet[] = {
-		0x55,0x55,0x55,0x55,0x55,0x55,
-		0x1A,0xCF,0xFC,0x1D,
-		't','e','s','t','i',0,0,0,0 };
-	if(metadata->timestamp % 1000000000LL < 100000000LL) {
-		size_t len = sizeof(packet)*8;
-		if(len > maxbits) len = maxbits;
-		size_t i;
-		for(i=0; i<len; i++)
-			bits[i] = 1 & (packet[i/8] >> (7&(7-i)));
-		return len;
-	}
-	return -1;
-}
-
-
-const struct framer_code test_framer_code = { test_framer_init, test_framer_get_frame };
-
-
 
 /* Main loop with SoapySDR interfacing */
 
 
 
-void print_fail(const char *function, int ret)
+static void soapy_fail(const char *function, int ret)
 {
 	fprintf(stderr, "%s failed (%d): %s\n", function, ret, SoapySDRDevice_lastError());
 }
-#define SOAPYCHECK(function,...) { int ret = function(__VA_ARGS__); if(ret != 0) { print_fail(#function, ret); goto exit_soapy; } }
+#define SOAPYCHECK(function,...) { int ret = function(__VA_ARGS__); if(ret != 0) { soapy_fail(#function, ret); goto exit_soapy; } }
+
 
 
 volatile int running = 1;
@@ -118,9 +38,13 @@ typedef unsigned char sample1_t[2];
 
 struct suoapp_conf *conf = NULL;
 
-#define BUFLEN 4096
+#define BUFLEN 2048
 int main()
 {
+	/*----------------------
+	 ---- Configuration ----
+	 -----------------------*/
+
 	// TODO: configuration file or command line arguments
 	const float
 #if 1
@@ -134,36 +58,88 @@ int main()
 		receivefreq = 2394.993e6,
 		transmitfreq = 437.035e6,
 #endif
-		sdr_gain = 60, sdr_tx_gain = 60;
+		sdr_gain = 60, sdr_tx_gain = /*28*/ 50;
 	size_t sdr_channel = 0, sdr_tx_channel = 0;
+#if 0
 	const char *sdr_driver = "xtrx", *sdr_antenna = "LNAW", *sdr_tx_antenna = "BAND1";
+#else
+	const char *sdr_driver = "uhd", *sdr_antenna = "TX/RX", *sdr_tx_antenna = "TX/RX";
+#endif
 	bool transmit_on = 1;
 
 	const long long rx_tx_latency_ns = 50000000;
 
-	struct simple_receiver_conf rxconf = {
+	const struct receiver_code receiver = simple_receiver_code;
+	const struct simple_receiver_conf rxconf = {
 		.samplerate = sdr_samplerate, .symbolrate = 9600,
 		.centerfreq = receivefreq - sdr_centerfreq,
+#if 0
 		.syncword = 0x55F68D, .synclen = 24,
 		.framelen = 16*8
+#else
+		.syncword = 0x1ACFFC1D, .synclen = 32,
+		.framelen = 30*8
+#endif
 	};
-	struct receiver_code receiver = simple_receiver_code;
 
-	struct simple_transmitter_conf txconf = {
+	const struct transmitter_code transmitter = simple_transmitter_code;
+	const struct simple_transmitter_conf txconf = {
 		.samplerate = sdr_samplerate, .symbolrate = 9600,
 		.centerfreq = transmitfreq - sdr_tx_centerfreq,
 		.modindex = 0.5
 	};
-	struct transmitter_code transmitter = simple_transmitter_code;
 
-	struct frame_output_code out = test_output_code;
 
-	void *out_arg = out.init(NULL);
-	void *receiver_arg = receiver.init(&rxconf);
-	void *transmitter_arg = transmitter.init(&txconf);
+	const struct decoder_code *decoder = &basic_decoder_code;
+	const struct basic_decoder_conf decoder_conf = {
+		.lsb_first = 0
+	};
 
-	receiver.set_callbacks(receiver_arg, &out, out_arg);
-	transmitter.set_callbacks(transmitter_arg, &test_framer_code, NULL);
+	const struct encoder_code *encoder = &basic_encoder_code;
+	const struct basic_encoder_conf encoder_conf = {
+		.lsb_first = 0,
+		.syncword = 0xAAAAAAAA00000000ULL | rxconf.syncword,
+		.synclen = 64
+	};
+	
+
+	const struct rx_output_code *rx_output = &zmq_rx_output_code;
+	struct zmq_rx_output_conf rx_output_conf = {
+		.zmq_addr = "tcp://*:43700"
+	};
+
+	const struct tx_input_code *tx_input = &zmq_tx_input_code;
+	struct zmq_tx_input_conf tx_input_conf = {
+		.zmq_addr = "tcp://*:43701"
+	};
+
+	/*-----------------------
+	 ---- Initialization ----
+	 ------------------------*/
+	void     *encoder_arg =     encoder->init(&encoder_conf);
+	void     *decoder_arg =     encoder->init(&decoder_conf);
+
+	rx_output_conf.decoder = decoder;
+	rx_output_conf.decoder_arg = decoder_arg;
+	tx_input_conf.encoder = encoder;
+	tx_input_conf.encoder_arg = encoder_arg;
+
+	void   *rx_output_arg =   rx_output->init(&rx_output_conf);
+	void    *tx_input_arg =    tx_input->init(&tx_input_conf);
+	void    *receiver_arg =     receiver.init(&rxconf);
+	void *transmitter_arg =  transmitter.init(&txconf);
+
+	receiver.set_callbacks(receiver_arg, rx_output, rx_output_arg);
+	transmitter.set_callbacks(transmitter_arg, tx_input, tx_input_arg);
+
+
+	/*----------------------------
+	 ---- More initialization ----
+	 -----------------------------*/
+
+	SoapySDRDevice *sdr = NULL;
+	SoapySDRStream *rxstream = NULL, *txstream = NULL;
+
 
 	struct sigaction sigact;
 	sigact.sa_handler = sighandler;
@@ -175,15 +151,12 @@ int main()
 	sigaction(SIGPIPE, &sigact, NULL);
 
 
-	SoapySDRDevice *sdr = NULL;
-	SoapySDRStream *rxstream = NULL, *txstream = NULL;
-
 	SoapySDRKwargs args = {};
 	SoapySDRKwargs_set(&args, "driver", sdr_driver);
 	sdr = SoapySDRDevice_make(&args);
 	SoapySDRKwargs_clear(&args);
 	if(sdr == NULL) {
-		print_fail("SoapySDRDevice_make", 0);
+		soapy_fail("SoapySDRDevice_make", 0);
 		goto exit_soapy;
 	}
 
@@ -241,14 +214,14 @@ int main()
 	rxstream = SoapySDRDevice_setupStream(sdr,
 		SOAPY_SDR_RX, SOAPY_SDR_CF32, &sdr_channel, 1, NULL);
 	if(rxstream == NULL) {
-		print_fail("SoapySDRDevice_setupStream", 0);
+		soapy_fail("SoapySDRDevice_setupStream", 0);
 		goto exit_soapy;
 	}
 	if(transmit_on) {
 		txstream = SoapySDRDevice_setupStream(sdr,
 			SOAPY_SDR_TX, SOAPY_SDR_CF32, &sdr_tx_channel, 1, NULL);
 		if(txstream == NULL) {
-			print_fail("SoapySDRDevice_setupStream", 0);
+			soapy_fail("SoapySDRDevice_setupStream", 0);
 			goto exit_soapy;
 		}
 	}
@@ -261,6 +234,9 @@ int main()
 		SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
 			txstream, 0, 0, 0);
 
+	/*----------------------------
+	 --------- Main loop ---------
+	 -----------------------------*/
 	bool tx_burst_going = 0;
 	while(running) {
 		sample_t rxbuf[BUFLEN];
@@ -275,7 +251,7 @@ int main()
 		if(ret > 0) {
 			receiver.execute(receiver_arg, rxbuf, ret);
 		} else if(ret <= 0) {
-			print_fail("SoapySDRDevice_readStream", ret);
+			soapy_fail("SoapySDRDevice_readStream", ret);
 		}
 
 		if(transmit_on) {
@@ -300,10 +276,10 @@ int main()
 				}
 
 				ret = SoapySDRDevice_writeStream(sdr, txstream,
-					txbuffs, BUFLEN, &flags,
+					txbuffs, ntx, &flags,
 					tx_metadata.timestamp, 100000);
 				if(ret <= 0)
-					print_fail("SoapySDRDevice_writeStream", ret);
+					soapy_fail("SoapySDRDevice_writeStream", ret);
 			} else {
 				/* Nothing to transmit.
 				 * If end of burst flag wasn't sent in last round,
@@ -317,7 +293,7 @@ int main()
 						txbuffs, 1, &flags,
 						rx_timestamp + rx_tx_latency_ns, 100000);
 					if(ret <= 0)
-						print_fail("SoapySDRDevice_writeStream (end of burst)", ret);
+						soapy_fail("SoapySDRDevice_writeStream (end of burst)", ret);
 				}
 				tx_burst_going = 0;
 			}

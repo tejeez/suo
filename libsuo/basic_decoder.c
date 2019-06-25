@@ -13,14 +13,22 @@ const struct basic_decoder_conf basic_decoder_defaults = {
 };
 
 
-static void *init(const void *confv) {
+static void *init(const void *confv)
+{
 	struct basic_decoder *self = malloc(sizeof(struct basic_decoder));
 	self->conf = *(struct basic_decoder_conf*)confv;
 	return self;
 }
 
 
-static int decode(void *arg, bit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len)
+static int destroy(void *arg)
+{
+	free(arg);
+	return 0;
+}
+
+
+static int decode(void *arg, const bit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len)
 {
 	struct basic_decoder *self = arg;
 	const bool lsb_first = self->conf.lsb_first;
@@ -52,5 +60,5 @@ static int decode(void *arg, bit_t *bits, size_t nbits, uint8_t *decoded, size_t
 }
 
 
-const struct decoder_code basic_decoder_code = { init, decode };
+const struct decoder_code basic_decoder_code = { init, destroy, decode };
 

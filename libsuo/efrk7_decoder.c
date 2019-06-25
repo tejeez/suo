@@ -13,7 +13,8 @@ const struct efrk7_decoder_conf efrk7_decoder_defaults = {
 };
 
 
-static void *efrk7_init(const void *confv) {
+static void *efrk7_init(const void *confv)
+{
 	//const struct efrk7_decoder_conf *conf = confv;
 	(void)confv;
 	struct efrk7 *s = malloc(sizeof(struct efrk7));
@@ -22,7 +23,18 @@ static void *efrk7_init(const void *confv) {
 }
 
 
-static uint8_t swap_byte_bit_order(uint8_t v) {
+static int efrk7_destroy(void *arg)
+{
+	struct efrk7 *s = arg;
+	if(s == NULL) return 0;
+	fec_destroy(s->fecdecoder);
+	free(s);
+	return 0;
+}
+
+
+static uint8_t swap_byte_bit_order(uint8_t v)
+{
 	return
 	((0x80&v) >> 7) |
 	((0x40&v) >> 5) |
@@ -37,7 +49,7 @@ static uint8_t swap_byte_bit_order(uint8_t v) {
 
 #define PKT_BITS 304
 #define MSG_DEC_BYTES 18
-static int efrk7_decode(void *arg, bit_t *pktb, size_t len, uint8_t *decoded, size_t max_decoded_len)
+static int efrk7_decode(void *arg, const bit_t *pktb, size_t len, uint8_t *decoded, size_t max_decoded_len)
 {
 	struct efrk7 *s = arg;
 	if(len != PKT_BITS || max_decoded_len < MSG_DEC_BYTES) return -1;
@@ -65,5 +77,5 @@ static int efrk7_decode(void *arg, bit_t *pktb, size_t len, uint8_t *decoded, si
 }
 
 
-const struct decoder_code efrk7_decoder_code = { efrk7_init, efrk7_decode };
+const struct decoder_code efrk7_decoder_code = { efrk7_init, efrk7_destroy, efrk7_decode };
 
