@@ -45,7 +45,7 @@ static int encode(void *arg, bit_t *bits, size_t max_nbits, const uint8_t *data,
 	uint64_t header = self->conf.syncword;
 	for (i = headerbits; i-- > 0; ) {
 		bits[i] = header & 1;
-		header <<= 1;
+		header >>= 1;
 	}
 
 	for (i = headerbits; i < nbits; i++) {

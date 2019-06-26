@@ -41,6 +41,9 @@ struct suoapp_conf *conf = NULL;
 #define BUFLEN 2048
 int main()
 {
+	SoapySDRDevice *sdr = NULL;
+	SoapySDRStream *rxstream = NULL, *txstream = NULL;
+
 	/*----------------------
 	 ---- Configuration ----
 	 -----------------------*/
@@ -124,10 +127,11 @@ int main()
 	tx_input_conf.encoder = encoder;
 	tx_input_conf.encoder_arg = encoder_arg;
 
-	void   *rx_output_arg =   rx_output->init(&rx_output_conf);
-	void    *tx_input_arg =    tx_input->init(&tx_input_conf);
 	void    *receiver_arg =     receiver.init(&rxconf);
 	void *transmitter_arg =  transmitter.init(&txconf);
+
+	void   *rx_output_arg =   rx_output->init(&rx_output_conf);
+	void    *tx_input_arg =    tx_input->init(&tx_input_conf);
 
 	receiver.set_callbacks(receiver_arg, rx_output, rx_output_arg);
 	transmitter.set_callbacks(transmitter_arg, tx_input, tx_input_arg);
@@ -136,10 +140,6 @@ int main()
 	/*----------------------------
 	 ---- More initialization ----
 	 -----------------------------*/
-
-	SoapySDRDevice *sdr = NULL;
-	SoapySDRStream *rxstream = NULL, *txstream = NULL;
-
 
 	struct sigaction sigact;
 	sigact.sa_handler = sighandler;
@@ -303,6 +303,12 @@ int main()
 	fprintf(stderr, "Stopped receiving\n");
 
 exit_soapy:
+	if(rx_output_arg)
+		rx_output->destroy(rx_output_arg);
+
+	if(tx_input_arg)
+		tx_input->destroy(tx_input_arg);
+
 	if(rxstream != NULL) {
 		fprintf(stderr, "Deactivating stream\n");
 		SoapySDRDevice_deactivateStream(sdr, rxstream, 0, 0);

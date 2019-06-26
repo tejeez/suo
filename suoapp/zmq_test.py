@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 import zmq
 ctx = zmq.Context()
-s = ctx.socket(zmq.SUB)
-s.connect("tcp://localhost:43700")
-s.setsockopt(zmq.SUBSCRIBE, b"")
+
+rx = ctx.socket(zmq.SUB)
+rx.connect("tcp://localhost:43700")
+rx.setsockopt(zmq.SUBSCRIBE, b"")
+
+tx = ctx.socket(zmq.PUB)
+tx.connect("tcp://localhost:43701")
+
 while True:
-	print(s.recv())
+	if rx.poll(timeout=1000):
+		print(rx.recv())
+	tx.send(b"test packet")

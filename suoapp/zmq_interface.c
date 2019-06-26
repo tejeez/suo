@@ -24,8 +24,8 @@ struct zmq_output {
 	pthread_t decoder_thread;
 
 	/* ZeroMQ sockets */
-	void *z_rx_pub;
-	void *z_decw, *z_decr;
+	void *z_rx_pub; /* Publish decoded frames */
+	void *z_decw, *z_decr; /* Receiver-to-decoder queue */
 
 	/* Callbacks */
 	struct decoder_code decoder;
@@ -79,8 +79,12 @@ fail: // TODO cleanup
 static int zmq_output_destroy(void *arg)
 {
 	struct zmq_output *self = arg;
-	pthread_kill(self->decoder_thread, SIGTERM);
-	pthread_join(self->decoder_thread, NULL);
+	if(self == NULL) return 0;
+	if(self->running) {
+		self->running = 0;
+		pthread_kill(self->decoder_thread, SIGTERM);
+		pthread_join(self->decoder_thread, NULL);
+	}
 	return 0;
 }
 
@@ -89,12 +93,13 @@ static int zmq_output_destroy(void *arg)
 #define DECODED_MAXLEN 0x200
 static void *zmq_decoder_main(void *arg)
 {
-	int ret;
 	struct zmq_output *self = arg;
 
 	bit_t bits[BITS_MAXLEN];
 	uint8_t decoded[DECODED_MAXLEN];
 
+	/* Read frames from the receiver-to-decoder queue
+	 * transmit buffer queue. */
 	while(self->running) {
 		int nread;
 
@@ -112,7 +117,7 @@ static void *zmq_decoder_main(void *arg)
 				/* Decode failed. TODO: send or save diagnostics somewhere */
 			}
 		} else {
-			print_fail_zmq("zmq_recv", ret);
+			print_fail_zmq("zmq_recv", nread);
 			goto fail;
 		}
 	}
@@ -141,7 +146,17 @@ fail:
 
 
 struct zmq_tx_input {
-	void *z_tx_sub;
+	/* State */
+	volatile bool running;
+
+	/* Threads */
+	pthread_t encoder_thread;
+
+	/* ZeroMQ sockets */
+	void *z_tx_sub; /* Subscribe frames to be encoded */
+	void *z_txbuf_w, *z_txbuf_r; /* Encoded-to-transmitter queue */
+
+	/* Callbacks */
 	struct encoder_code encoder;
 	void *encoder_arg;
 };
@@ -171,8 +186,18 @@ static void *zmq_tx_input_init(const void *confv)
 	ZMQCHECK(zmq_bind(self->z_tx_sub, conf->zmq_addr));
 	ZMQCHECK(zmq_setsockopt(self->z_tx_sub, ZMQ_SUBSCRIBE, "", 0));
 
-	/* TODO start thread */
-	(void)zmq_encoder_main;
+	/* Create unique name in case multiple instances are initialized */
+	char pair_name[20];
+	static int pair_number=0;
+	snprintf(pair_name, 20, "inproc://txbuf_%d", ++pair_number);
+	
+	self->z_txbuf_r = zmq_socket(zmq, ZMQ_PAIR);
+	ZMQCHECK(zmq_bind(self->z_txbuf_r, pair_name));
+	self->z_txbuf_w = zmq_socket(zmq, ZMQ_PAIR);
+	ZMQCHECK(zmq_connect(self->z_txbuf_w, pair_name));
+
+	self->running = 1;
+	pthread_create(&self->encoder_thread, NULL, zmq_encoder_main, self);
 
 	return self;
 fail:
@@ -181,32 +206,69 @@ fail:
 }
 
 
+static void *zmq_encoder_main(void *arg)
+{
+	struct zmq_tx_input *self = arg;
+
+	bit_t bits[BITS_MAXLEN];
+	uint8_t decoded[DECODED_MAXLEN];
+
+	/* Read frames from the SUB socket, encode them and put them
+	 * in the transmit buffer queue. */
+	while(self->running) {
+		int nread, nbits;
+
+		nread = zmq_recv(self->z_tx_sub, decoded, DECODED_MAXLEN, 0);
+		if(nread >= 0) {
+			nbits = self->encoder.encode(self->encoder_arg,
+				bits, BITS_MAXLEN, decoded, nread);
+			assert(nbits <= BITS_MAXLEN);
+
+			if(nbits >= 0) {
+				ZMQCHECK(zmq_send(self->z_txbuf_w, bits, sizeof(bit_t)*nbits, 0));
+			} else {
+				/* Encode failed, should not happen */
+			}
+		} else {
+			print_fail_zmq("zmq_recv", nread);
+			goto fail;
+		}
+	}
+
+fail:
+	return NULL;
+}
+
+
+static int zmq_tx_input_get_frame(void *arg, bit_t *bits, size_t max_nbits, struct transmitter_metadata *metadata)
+{
+	int nread, nbits;
+	struct zmq_tx_input *self = arg;
+
+	(void)metadata; // TODO: could actually have another type for tx frame metadata
+
+	nread = zmq_recv(self->z_txbuf_r, bits, sizeof(bit_t)*max_nbits, ZMQ_DONTWAIT);
+	if(nread >= 0) {
+		nbits = nread / sizeof(bit_t);
+		return nbits;
+	} else {
+		/* No frame in queue */
+		return -1;
+	}
+}
+
+
 static int zmq_tx_input_destroy(void *arg)
 {
 	struct zmq_tx_input *self = arg;
 	if(self == NULL) return 0;
-	/* TODO kill thread etc */
+	if(self->running) {
+		self->running = 0;
+		pthread_kill(self->encoder_thread, SIGTERM);
+		pthread_join(self->encoder_thread, NULL);
+	}
 	return 0;
 }
-
-
-static int zmq_tx_input_get_frame(void *arg, bit_t *bits, size_t nbits, struct transmitter_metadata *metadata)
-{
-	struct zmq_tx_input *self = arg;
-	/* TODO receive from encoder thread etc */
-	(void)self; (void)bits; (void)nbits; (void)metadata;
-	return -1;
-}
-
-
-static void *zmq_encoder_main(void *arg)
-{
-	struct zmq_tx_input *self = arg;
-	/* TODO loop */
-	(void)self;
-	return 0;
-}
-
 
 
 const struct rx_output_code zmq_rx_output_code = { zmq_output_init, zmq_output_destroy, zmq_output_frame };
