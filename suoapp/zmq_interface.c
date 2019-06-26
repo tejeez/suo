@@ -127,9 +127,11 @@ fail:
 }
 
 
-static int zmq_output_frame(void *arg, const bit_t *bits, size_t nbits)
+static int zmq_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_metadata *metadata)
 {
 	struct zmq_output *self = arg;
+
+	printf("%lld %f\n", (long long)metadata->timestamp, (double)metadata->cfo);
 
 	/* Non-blocking send to avoid blocking the receiver in case
 	 * decoder runs out of CPU time and ZMQ buffer fills up.
@@ -240,12 +242,12 @@ fail:
 }
 
 
-static int zmq_tx_input_get_frame(void *arg, bit_t *bits, size_t max_nbits, struct transmitter_metadata *metadata)
+static int zmq_tx_input_get_frame(void *arg, bit_t *bits, size_t max_nbits, timestamp_t timestamp, struct tx_metadata *metadata)
 {
 	int nread, nbits;
 	struct zmq_tx_input *self = arg;
 
-	(void)metadata; // TODO: could actually have another type for tx frame metadata
+	(void)metadata; // TODO
 
 	nread = zmq_recv(self->z_txbuf_r, bits, sizeof(bit_t)*max_nbits, ZMQ_DONTWAIT);
 	if(nread >= 0) {

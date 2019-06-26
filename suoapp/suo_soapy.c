@@ -53,8 +53,8 @@ int main()
 #if 1
 		sdr_samplerate = 250000,
 		sdr_centerfreq = 437e6, sdr_tx_centerfreq = 437e6,
-		receivefreq = 437.035e6 /*437.0175e6*/,
-		transmitfreq = 437.035e6,
+		receivefreq = 437.038e6 /*437.0175e6*/,
+		transmitfreq = 437.038e6,
 #else
 		sdr_samplerate = 500000,
 		sdr_centerfreq = 2395.1e6, sdr_tx_centerfreq = 2395e6,
@@ -249,7 +249,7 @@ int main()
 			rxbuffs, BUFLEN, &flags, &rx_timestamp, 200000);
 		// TODO: implement metadata and add timestamps there
 		if(ret > 0) {
-			receiver.execute(receiver_arg, rxbuf, ret);
+			receiver.execute(receiver_arg, rxbuf, ret, rx_timestamp);
 		} else if(ret <= 0) {
 			soapy_fail("SoapySDRDevice_readStream", ret);
 		}
@@ -260,10 +260,8 @@ int main()
 			 * Maybe the modem should tell when a burst ends
 			 * in an additional field in the metadata struct? */
 			int ntx;
-			struct transmitter_metadata tx_metadata = {
-				.timestamp = rx_timestamp + rx_tx_latency_ns
-			};
-			ntx = transmitter.execute(transmitter_arg, txbuf, BUFLEN, &tx_metadata);
+			timestamp_t tx_timestamp = rx_timestamp + rx_tx_latency_ns;
+			ntx = transmitter.execute(transmitter_arg, txbuf, BUFLEN, &tx_timestamp);
 			if(ntx > 0) {
 				flags = SOAPY_SDR_HAS_TIME;
 				/* If there were less than the maximum number of samples,
@@ -277,7 +275,7 @@ int main()
 
 				ret = SoapySDRDevice_writeStream(sdr, txstream,
 					txbuffs, ntx, &flags,
-					tx_metadata.timestamp, 100000);
+					tx_timestamp, 100000);
 				if(ret <= 0)
 					soapy_fail("SoapySDRDevice_writeStream", ret);
 			} else {

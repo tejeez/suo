@@ -26,6 +26,7 @@ struct simple_transmitter {
 	void *input_arg;
 
 	/* Buffers */
+	struct tx_metadata metadata;
 	bit_t framebuf[FRAMELEN_MAX];
 };
 
@@ -68,23 +69,10 @@ static int set_callbacks(void *arg, const struct tx_input_code *input, void *inp
 }
 
 
-static int execute(void *arg, sample_t *samples, size_t maxsamples, struct transmitter_metadata *metadata)
+static int execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t *timestamp)
 {
 	struct simple_transmitter *self = arg;
 	size_t nsamples = 0;
-#if 0
-	/* initial tests */
-	(void)self; (void)metadata;
-	if(rand()&1) {
-		size_t si;
-		for(si = 0; si < nsamples; si++) {
-			samples[si] = sinf(si);
-		}
-		return nsamples;
-	} else {
-		return 0;
-	}
-#endif
 
 	const uint32_t symrate = self->symrate;
 	const float freq0 = self->freq0, freq1 = self->freq1;
@@ -96,7 +84,7 @@ static int execute(void *arg, sample_t *samples, size_t maxsamples, struct trans
 
 	if(!transmitting) {
 		int ret;
-		ret = self->input.get_frame(self->input_arg, framebuf, FRAMELEN_MAX, metadata);
+		ret = self->input.get_frame(self->input_arg, framebuf, FRAMELEN_MAX, *timestamp, &self->metadata);
 		if(ret > 0) {
 			assert(ret <= FRAMELEN_MAX);
 			transmitting = 1;

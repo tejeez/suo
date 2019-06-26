@@ -21,6 +21,8 @@ struct simple_receiver {
 	unsigned framepos, totalbits;
 	bool receiving_frame;
 
+	float fm_dc, fm_level0, fm_level1; /* Used by AFC */
+
 	/* liquid-dsp objects */
 	nco_crcf l_nco;
 	resamp_crcf l_resamp;
@@ -32,6 +34,7 @@ struct simple_receiver {
 	void *output_arg;
 
 	/* Buffers */
+	struct rx_metadata metadata;
 	bit_t framebuf[FRAMELEN_MAX];
 };
 
@@ -62,7 +65,7 @@ static void *simple_receiver_init(const void *conf_v)
 	self->l_nco = nco_crcf_create(LIQUID_NCO);
 	nco_crcf_set_frequency(self->l_nco, pi2f * c.centerfreq / c.samplerate);
 
-	self->l_symsync = symsync_rrrf_create_rnyquist(LIQUID_FIRFILT_GMSKRX, OVERSAMPLING, 3, 0.5f, 32);
+	self->l_symsync = symsync_rrrf_create_rnyquist(LIQUID_FIRFILT_GMSKRX, OVERSAMPLING, 3, 1.0f, 32);
 	symsync_rrrf_set_lf_bw(self->l_symsync, 0.01f);
 
 	return self;
@@ -87,8 +90,10 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 		self->framebuf[framepos] = bit;
 		framepos++;
 		if(framepos == framelen) {
-			self->output.frame(self->output_arg, self->framebuf, framelen);
+			self->output.frame(self->output_arg, self->framebuf, framelen, &self->metadata);
 			receiving_frame = 0;
+			//printf("End:   %7.4f %7.4f %7.4f\n", (double)self->fm_dc, (double)self->fm_level0, (double)self->fm_level1);
+			self->metadata.cfo = self->fm_dc; /* TODO: convert to Hz */
 		}
 	} else {
 		receiving_frame = 0;
@@ -107,6 +112,7 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 			/* Syncword found, start saving bits when next bit arrives */
 			framepos = 0;
 			receiving_frame = 1;
+			//printf("Start: %7.4f %7.4f %7.4f\n", (double)self->fm_dc, (double)self->fm_level0, (double)self->fm_level1);
 #if 0
 			printf("_%d_", syncerrs);
 #endif
@@ -125,16 +131,18 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 }
 
 
-static int simple_receiver_execute(void *arg, const sample_t *samples, size_t nsamp)
+static int simple_receiver_execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t timestamp)
 {
 	struct simple_receiver *self = arg;
 
-	/* Copy some configuration as local variables to make code
-	 * more clear and possibly also faster */
-	//const struct simple_receiver_conf c = self->c;
+	/* Copy some often used variables to local variables */
+	float fm_dc = self->fm_dc, fm_level0 = self->fm_level0, fm_level1 = self->fm_level1;
 
 	/* Allocate small buffers from stack */
 	sample_t samples2[self->resampint];
+
+	self->metadata.timestamp = timestamp;
+	/* TODO: increment timestamp in loop */
 
 	size_t si;
 	for(si = 0; si < nsamp; si++) {
@@ -153,16 +161,52 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 			unsigned nsynchronized = 0;
 
 			freqdem_demodulate(self->l_fdem, samples2[si2], &fm_demodulated);
+
+			/* Simple alternative to AFC: track DC offset in FM demodulator
+			 * output. When looking for a preamble, just run it as
+			 * a high pass filter. When receiving a frame, switch
+			 * to decision directed mode to avoid baseline wander.
+			 * Using a coefficient of 0.01, it should settle within 7 %
+			 * during 64 symbols (and 4x oversampling). */
+			if(!self->receiving_frame) {
+				fm_dc += (fm_demodulated - fm_dc) * 0.01f;
+			}
+			fm_demodulated -= fm_dc;
+
+
 			symsync_rrrf_execute(self->l_symsync, &fm_demodulated, 1, &synchronized, &nsynchronized);
+
 			//synchronized = fm_demodulated; nsynchronized = 1; // test: bypass synchronizer
 			assert(nsynchronized <= 1);
 
 			if(nsynchronized == 1) {
+				//fm_level0 += (synchronized - fm_level0) * .04f;
 				/* Process one output symbol from synchronizer */
-				unsigned decision = (synchronized > 0) ? 1 : 0;
+				bool decision;
+
+				float threshold = 0;
+				if(self->receiving_frame)
+					threshold = 0.5f * (fm_level0 + fm_level1);
+
+				if(synchronized >= threshold) {
+					decision = 1;
+					fm_level1 += (synchronized - fm_level1) * 0.05f;
+				} else {
+					decision = 0;
+					fm_level0 += (synchronized - fm_level0) * 0.05f;
+				}
+
+				self->fm_dc = fm_dc;
+				self->fm_level0 = fm_level0;
+				self->fm_level1 = fm_level1;
+
 				simple_deframer_execute(self, decision);
 			}
 		}
+
+		self->fm_dc = fm_dc;
+		//self->fm_level0 = fm_level0;
+		//self->fm_level1 = fm_level1;
 		
 #if 0
 		/* Simple test: periodically output some random frames */
