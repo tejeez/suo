@@ -1,10 +1,6 @@
 #include "libsuo/suo.h"
-#include "libsuo/simple_receiver.h"
-#include "libsuo/simple_transmitter.h"
-#include "libsuo/basic_decoder.h"
-#include "libsuo/basic_encoder.h"
 //#include "test_interface.h"
-#include "zmq_interface.h"
+#include "configure.h"
 
 #include <stdio.h>
 #include <signal.h>
@@ -36,105 +32,43 @@ void sighandler(int sig)
 
 typedef unsigned char sample1_t[2];
 
-struct suoapp_conf *conf = NULL;
+static struct configuration config;
+
 
 #define BUFLEN 2048
-int main()
+int main(int argc, char *argv[])
 {
 	SoapySDRDevice *sdr = NULL;
 	SoapySDRStream *rxstream = NULL, *txstream = NULL;
 
+	struct configuration *const conf = &config;
+	if(configure(conf, argc, argv) < 0)
+		return 1;
+
 	/*----------------------
 	 ---- Configuration ----
 	 -----------------------*/
-
-	// TODO: configuration file or command line arguments
-	const float
-#if 1
-		sdr_samplerate = 250000,
-		sdr_centerfreq = 437e6, sdr_tx_centerfreq = 437e6,
-		receivefreq = 437.038e6 /*437.0175e6*/,
-		transmitfreq = 437.038e6,
-#else
-		sdr_samplerate = 500000,
-		sdr_centerfreq = 2395.1e6, sdr_tx_centerfreq = 2395e6,
-		receivefreq = 2394.993e6,
-		transmitfreq = 437.035e6,
-#endif
-		sdr_gain = 60, sdr_tx_gain = /*28*/ 50;
-	size_t sdr_channel = 0, sdr_tx_channel = 0;
-#if 0
-	const char *sdr_driver = "xtrx", *sdr_antenna = "LNAW", *sdr_tx_antenna = "BAND1";
-#else
-	const char *sdr_driver = "uhd", *sdr_antenna = "TX/RX", *sdr_tx_antenna = "TX/RX";
-#endif
 	bool transmit_on = 1;
 
 	const long long rx_tx_latency_ns = 50000000;
-
-	const struct receiver_code receiver = simple_receiver_code;
-	const struct simple_receiver_conf rxconf = {
-		.samplerate = sdr_samplerate, .symbolrate = 9600,
-		.centerfreq = receivefreq - sdr_centerfreq,
 #if 0
-		.syncword = 0x55F68D, .synclen = 24,
-		.framelen = 16*8
-#else
-		.syncword = 0x1ACFFC1D, .synclen = 32,
-		.framelen = 30*8
 #endif
-	};
-
-	const struct transmitter_code transmitter = simple_transmitter_code;
-	const struct simple_transmitter_conf txconf = {
-		.samplerate = sdr_samplerate, .symbolrate = 9600,
-		.centerfreq = transmitfreq - sdr_tx_centerfreq,
-		.modindex = 0.5
-	};
-
-
-	const struct decoder_code *decoder = &basic_decoder_code;
-	const struct basic_decoder_conf decoder_conf = {
-		.lsb_first = 0
-	};
-
-	const struct encoder_code *encoder = &basic_encoder_code;
-	const struct basic_encoder_conf encoder_conf = {
-		.lsb_first = 0,
-		.syncword = 0xAAAAAAAA00000000ULL | rxconf.syncword,
-		.synclen = 64
-	};
-	
-
-	const struct rx_output_code *rx_output = &zmq_rx_output_code;
-	struct zmq_rx_output_conf rx_output_conf = {
-		.zmq_addr = "tcp://*:43700"
-	};
-
-	const struct tx_input_code *tx_input = &zmq_tx_input_code;
-	struct zmq_tx_input_conf tx_input_conf = {
-		.zmq_addr = "tcp://*:43701"
-	};
-
 	/*-----------------------
 	 ---- Initialization ----
 	 ------------------------*/
-	void     *encoder_arg =     encoder->init(&encoder_conf);
-	void     *decoder_arg =     encoder->init(&decoder_conf);
+	void     *encoder_arg =     conf->encoder->init(conf->encoder_conf);
+	void     *decoder_arg =     conf->encoder->init(conf->decoder_conf);
 
-	rx_output_conf.decoder = decoder;
-	rx_output_conf.decoder_arg = decoder_arg;
-	tx_input_conf.encoder = encoder;
-	tx_input_conf.encoder_arg = encoder_arg;
+	void    *receiver_arg =    conf->receiver->init(conf->receiver_conf);
+	void *transmitter_arg = conf->transmitter->init(conf->transmitter_conf);
 
-	void    *receiver_arg =     receiver.init(&rxconf);
-	void *transmitter_arg =  transmitter.init(&txconf);
+	void   *rx_output_arg =   conf->rx_output->init(conf->rx_output_conf);
+	void    *tx_input_arg =    conf->tx_input->init(conf->tx_input_conf);
 
-	void   *rx_output_arg =   rx_output->init(&rx_output_conf);
-	void    *tx_input_arg =    tx_input->init(&tx_input_conf);
-
-	receiver.set_callbacks(receiver_arg, rx_output, rx_output_arg);
-	transmitter.set_callbacks(transmitter_arg, tx_input, tx_input_arg);
+	conf->rx_output  ->set_callbacks(rx_output_arg, conf->decoder, decoder_arg);
+	conf->tx_input   ->set_callbacks(tx_input_arg, conf->encoder, encoder_arg);
+	conf->receiver   ->set_callbacks(receiver_arg, conf->rx_output, rx_output_arg);
+	conf->transmitter->set_callbacks(transmitter_arg, conf->tx_input, tx_input_arg);
 
 
 	/*----------------------------
@@ -152,7 +86,7 @@ int main()
 
 
 	SoapySDRKwargs args = {};
-	SoapySDRKwargs_set(&args, "driver", sdr_driver);
+	SoapySDRKwargs_set(&args, "driver", conf->radio.driver);
 	sdr = SoapySDRDevice_make(&args);
 	SoapySDRKwargs_clear(&args);
 	if(sdr == NULL) {
@@ -164,62 +98,62 @@ int main()
 	/* On some devices (e.g. xtrx), sample rate needs to be set before
 	 * center frequency or the driver crashes */
 	SOAPYCHECK(SoapySDRDevice_setSampleRate,
-		sdr, SOAPY_SDR_RX, sdr_channel,
-		sdr_samplerate);
+		sdr, SOAPY_SDR_RX, conf->radio.rx_channel,
+		conf->radio.samplerate);
 
 	SOAPYCHECK(SoapySDRDevice_setFrequency,
-		sdr, SOAPY_SDR_RX, sdr_channel,
-		sdr_centerfreq, NULL);
+		sdr, SOAPY_SDR_RX, conf->radio.rx_channel,
+		conf->radio.rx_centerfreq, NULL);
 
-	if(sdr_antenna != NULL)
+	if(conf->radio.rx_antenna != NULL)
 		SOAPYCHECK(SoapySDRDevice_setAntenna,
-			sdr, SOAPY_SDR_RX, sdr_channel,
-			sdr_antenna);
+			sdr, SOAPY_SDR_RX, conf->radio.rx_channel,
+			conf->radio.rx_antenna);
 
 	SOAPYCHECK(SoapySDRDevice_setGain,
-		sdr, SOAPY_SDR_RX, sdr_channel,
-		sdr_gain);
+		sdr, SOAPY_SDR_RX, conf->radio.rx_channel,
+		conf->radio.rx_gain);
 
 	if(transmit_on) {
 		fprintf(stderr, "Configuring TX\n");
 		SOAPYCHECK(SoapySDRDevice_setFrequency,
-			sdr, SOAPY_SDR_TX, sdr_tx_channel,
-			sdr_tx_centerfreq, NULL);
+			sdr, SOAPY_SDR_TX, conf->radio.tx_channel,
+			conf->radio.tx_centerfreq, NULL);
 
-		if(sdr_tx_antenna != NULL)
+		if(conf->radio.tx_antenna != NULL)
 			SOAPYCHECK(SoapySDRDevice_setAntenna,
-				sdr, SOAPY_SDR_TX, sdr_tx_channel,
-				sdr_tx_antenna);
+				sdr, SOAPY_SDR_TX, conf->radio.tx_channel,
+				conf->radio.tx_antenna);
 
 		SOAPYCHECK(SoapySDRDevice_setGain,
-			sdr, SOAPY_SDR_TX, sdr_tx_channel,
-			sdr_tx_gain);
+			sdr, SOAPY_SDR_TX, conf->radio.tx_channel,
+			conf->radio.tx_gain);
 
 		SOAPYCHECK(SoapySDRDevice_setSampleRate,
-			sdr, SOAPY_SDR_TX, sdr_tx_channel,
-			sdr_samplerate);
+			sdr, SOAPY_SDR_TX, conf->radio.tx_channel,
+			conf->radio.samplerate);
 	}
 
 #if SOAPY_SDR_API_VERSION < 0x00080000
 	SOAPYCHECK(SoapySDRDevice_setupStream,
 		sdr, &rxstream, SOAPY_SDR_RX,
-		SOAPY_SDR_CF32, &sdr_channel, 1, NULL);
+		SOAPY_SDR_CF32, &conf->radio.rx_channel, 1, NULL);
 
 	if(transmit_on) {
 		SOAPYCHECK(SoapySDRDevice_setupStream,
 			sdr, &txstream, SOAPY_SDR_TX,
-			SOAPY_SDR_CF32, &sdr_tx_channel, 1, NULL);
+			SOAPY_SDR_CF32, &conf->radio.tx_channel, 1, NULL);
 	}
 #else
 	rxstream = SoapySDRDevice_setupStream(sdr,
-		SOAPY_SDR_RX, SOAPY_SDR_CF32, &sdr_channel, 1, NULL);
+		SOAPY_SDR_RX, SOAPY_SDR_CF32, &conf->radio.rx_channel, 1, NULL);
 	if(rxstream == NULL) {
 		soapy_fail("SoapySDRDevice_setupStream", 0);
 		goto exit_soapy;
 	}
 	if(transmit_on) {
 		txstream = SoapySDRDevice_setupStream(sdr,
-			SOAPY_SDR_TX, SOAPY_SDR_CF32, &sdr_tx_channel, 1, NULL);
+			SOAPY_SDR_TX, SOAPY_SDR_CF32, &conf->radio.tx_channel, 1, NULL);
 		if(txstream == NULL) {
 			soapy_fail("SoapySDRDevice_setupStream", 0);
 			goto exit_soapy;
@@ -249,7 +183,7 @@ int main()
 			rxbuffs, BUFLEN, &flags, &rx_timestamp, 200000);
 		// TODO: implement metadata and add timestamps there
 		if(ret > 0) {
-			receiver.execute(receiver_arg, rxbuf, ret, rx_timestamp);
+			conf->receiver->execute(receiver_arg, rxbuf, ret, rx_timestamp);
 		} else if(ret <= 0) {
 			soapy_fail("SoapySDRDevice_readStream", ret);
 		}
@@ -261,7 +195,7 @@ int main()
 			 * in an additional field in the metadata struct? */
 			int ntx;
 			timestamp_t tx_timestamp = rx_timestamp + rx_tx_latency_ns;
-			ntx = transmitter.execute(transmitter_arg, txbuf, BUFLEN, &tx_timestamp);
+			ntx = conf->transmitter->execute(transmitter_arg, txbuf, BUFLEN, &tx_timestamp);
 			if(ntx > 0) {
 				flags = SOAPY_SDR_HAS_TIME;
 				/* If there were less than the maximum number of samples,
@@ -302,10 +236,10 @@ int main()
 
 exit_soapy:
 	if(rx_output_arg)
-		rx_output->destroy(rx_output_arg);
+		conf->rx_output->destroy(rx_output_arg);
 
 	if(tx_input_arg)
-		tx_input->destroy(tx_input_arg);
+		conf->tx_input->destroy(tx_input_arg);
 
 	if(rxstream != NULL) {
 		fprintf(stderr, "Deactivating stream\n");

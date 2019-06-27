@@ -29,9 +29,16 @@ struct rx_metadata {
 	uint32_t reserved[7];
 };
 
+struct decoder_code {
+	void *(*init)    (const void *conf);
+	int   (*destroy) (void *);
+	int   (*decode)  (void *, const bit_t *bits, size_t nbits, uint8_t *decoded, size_t nbytes);
+};
+
 struct rx_output_code {
 	void *(*init)    (const void *conf);
 	int   (*destroy) (void *);
+	int   (*set_callbacks) (void *, const struct decoder_code *, void *decoder_arg);
 	int   (*frame)   (void *, const bit_t *bits, size_t nbits, struct rx_metadata *);
 };
 
@@ -40,12 +47,6 @@ struct receiver_code {
 	int   (*destroy)       (void *);
 	int   (*set_callbacks) (void *, const struct rx_output_code *, void *rx_output_arg);
 	int   (*execute)       (void *, const sample_t *samp, size_t nsamp, timestamp_t timestamp);
-};
-
-struct decoder_code {
-	void *(*init)    (const void *conf);
-	int   (*destroy) (void *);
-	int   (*decode)  (void *, const bit_t *bits, size_t nbits, uint8_t *decoded, size_t nbytes);
 };
 
 
@@ -62,9 +63,16 @@ struct tx_metadata {
 	uint32_t reserved[2];
 };
 
+struct encoder_code {
+	void *(*init)    (const void *conf);
+	int   (*destroy) (void *);
+	int   (*encode)  (void *, bit_t *bits, size_t max_nbits, const uint8_t *input, size_t nbytes);
+};
+
 struct tx_input_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
+	int   (*set_callbacks) (void *, const struct encoder_code *, void *encoder_arg);
 	int   (*get_frame) (void *, bit_t *bits, size_t nbits, timestamp_t timestamp, struct tx_metadata *);
 };
 
@@ -73,12 +81,6 @@ struct transmitter_code {
 	int   (*destroy)       (void *);
 	int   (*set_callbacks) (void *, const struct tx_input_code *, void *tx_input_arg);
 	int   (*execute)       (void *, sample_t *samples, size_t nsamples, timestamp_t *timestamp);
-};
-
-struct encoder_code {
-	void *(*init)    (const void *conf);
-	int   (*destroy) (void *);
-	int   (*encode)  (void *, bit_t *bits, size_t max_nbits, const uint8_t *input, size_t nbytes);
 };
 
 #endif

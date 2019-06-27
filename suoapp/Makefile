@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -Wdouble-promotion -O3 -I..
 LIBS=-L../libsuo -lsuo -lliquid -lm
-OBJS=zmq_interface.o #test_interface.o
+OBJS=zmq_interface.o configure.o #test_interface.o
 
 all: suo_soapy #suo_file
 

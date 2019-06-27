@@ -38,12 +38,9 @@ static void *zmq_decoder_main(void*);
 static void *zmq_output_init(const void *confv)
 {
 	const struct zmq_rx_output_conf *conf = confv;
-	struct zmq_output *self = malloc(sizeof(struct zmq_output));
+	struct zmq_output *self = malloc(sizeof(*self));
 	if(self == NULL) return NULL;
 	memset(self, 0, sizeof(*self));
-
-	self->decoder = *conf->decoder;
-	self->decoder_arg = conf->decoder_arg;
 
 	if(zmq == NULL)
 		zmq = zmq_ctx_new();
@@ -73,6 +70,15 @@ static void *zmq_output_init(const void *confv)
 
 fail: // TODO cleanup
 	return NULL;
+}
+
+
+static int zmq_output_set_callbacks(void *arg, const struct decoder_code *decoder, void *decoder_arg)
+{
+	struct zmq_output *self = arg;
+	self->decoder = *decoder;
+	self->decoder_arg = decoder_arg;
+	return 0;
 }
 
 
@@ -147,7 +153,7 @@ fail:
 
 
 
-struct zmq_tx_input {
+struct zmq_input {
 	/* State */
 	volatile bool running;
 
@@ -164,20 +170,17 @@ struct zmq_tx_input {
 };
 
 
-static int zmq_tx_input_destroy(void *);
+static int zmq_input_destroy(void *);
 static void *zmq_encoder_main(void*);
 
 
-static void *zmq_tx_input_init(const void *confv)
+static void *zmq_input_init(const void *confv)
 {
 	const struct zmq_tx_input_conf *conf = confv;
-	struct zmq_tx_input *self = malloc(sizeof(struct zmq_tx_input));
+	struct zmq_input *self = malloc(sizeof(*self));
 	if(self == NULL) return NULL;
 	memset(self, 0, sizeof(*self));
 	
-	self->encoder = *conf->encoder;
-	self->encoder_arg = conf->encoder_arg;
-
 	/* If this is called from another thread than zmq_output_init,
 	 * a race condition is possible where two contexts are created.
 	 * Just initialize everything in one thread to avoid problems. */
@@ -203,14 +206,23 @@ static void *zmq_tx_input_init(const void *confv)
 
 	return self;
 fail:
-	zmq_tx_input_destroy(self);
+	zmq_input_destroy(self);
 	return NULL;
+}
+
+
+int zmq_input_set_callbacks(void *arg, const struct encoder_code *encoder, void *encoder_arg)
+{
+	struct zmq_input *self = arg;
+	self->encoder = *encoder;
+	self->encoder_arg = encoder_arg;
+	return 0;
 }
 
 
 static void *zmq_encoder_main(void *arg)
 {
-	struct zmq_tx_input *self = arg;
+	struct zmq_input *self = arg;
 
 	bit_t bits[BITS_MAXLEN];
 	uint8_t decoded[DECODED_MAXLEN];
@@ -242,11 +254,12 @@ fail:
 }
 
 
-static int zmq_tx_input_get_frame(void *arg, bit_t *bits, size_t max_nbits, timestamp_t timestamp, struct tx_metadata *metadata)
+static int zmq_input_get_frame(void *arg, bit_t *bits, size_t max_nbits, timestamp_t timestamp, struct tx_metadata *metadata)
 {
 	int nread, nbits;
-	struct zmq_tx_input *self = arg;
+	struct zmq_input *self = arg;
 
+	(void)timestamp; // Not used since protocol stack doesn't run here
 	(void)metadata; // TODO
 
 	nread = zmq_recv(self->z_txbuf_r, bits, sizeof(bit_t)*max_nbits, ZMQ_DONTWAIT);
@@ -260,9 +273,9 @@ static int zmq_tx_input_get_frame(void *arg, bit_t *bits, size_t max_nbits, time
 }
 
 
-static int zmq_tx_input_destroy(void *arg)
+static int zmq_input_destroy(void *arg)
 {
-	struct zmq_tx_input *self = arg;
+	struct zmq_input *self = arg;
 	if(self == NULL) return 0;
 	if(self->running) {
 		self->running = 0;
@@ -273,6 +286,6 @@ static int zmq_tx_input_destroy(void *arg)
 }
 
 
-const struct rx_output_code zmq_rx_output_code = { zmq_output_init, zmq_output_destroy, zmq_output_frame };
+const struct rx_output_code zmq_rx_output_code = { zmq_output_init, zmq_output_destroy, zmq_output_set_callbacks, zmq_output_frame };
 
-const struct tx_input_code zmq_tx_input_code = { zmq_tx_input_init, zmq_tx_input_destroy, zmq_tx_input_get_frame };
+const struct tx_input_code zmq_tx_input_code = { zmq_input_init, zmq_input_destroy, zmq_input_set_callbacks, zmq_input_get_frame };
