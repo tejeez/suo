@@ -12,6 +12,7 @@ struct radio_conf {
 	const char *driver, *rx_antenna, *tx_antenna;
 };
 
+#if 0
 struct configuration {
 	const struct receiver_code *receiver;
 	void *receiver_conf;
@@ -33,7 +34,31 @@ struct configuration {
 	
 	struct radio_conf radio;
 };
+#endif
 
-int configure(struct configuration *, int argc, char *argv[]);
+struct suo {
+	const struct receiver_code *receiver;
+	void *receiver_arg;
+
+	const struct transmitter_code *transmitter;
+	void *transmitter_arg;
+
+	const struct decoder_code *decoder;
+	void *decoder_arg;
+
+	const struct encoder_code *encoder;
+	void *encoder_arg;
+
+	const struct rx_output_code *rx_output;
+	void *rx_output_arg;
+
+	const struct tx_input_code *tx_input;
+	void *tx_input_arg;
+
+	struct radio_conf radio_conf;
+};
+
+int configure(struct suo *, int argc, char *argv[]);
+int deinitialize(struct suo *);
 
 #endif

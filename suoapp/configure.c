@@ -6,78 +6,128 @@
 #include "zmq_interface.h"
 #include <string.h>
 
-/* The code is going to be ugly anyway so let's use a macro
- * to avoid having to write type name 3 times everywhere.
- * Still have to write it twice though :(
- * Well, this will probably disappear when configuration file
- * parsing is done. */
-#define ALLOC(dst, type) *(type*)(dst = malloc(sizeof(type)))
+#define PARAMETERF(name) if(strcmp(argv[i], #name) == 0) { p_##name = atof(argv[i+1]); i++; continue; }
 
-int configure(struct configuration *conf, int argc, char *argv[])
+#define PARAMETERI(name) if(strcmp(argv[i], #name) == 0) { p_##name = atoi(argv[i+1]); i++; continue; }
+
+int configure(struct suo *suo, int argc, char *argv[])
 {
-	(void)argc; (void)argv;
-	memset(conf, 0, sizeof(*conf));
+	float p_samplerate = 500000;
+	float p_rxcenter = 437e6, p_txcenter = 437e6;
+	float p_rxfreq = 437.038e6, p_txfreq = 437.038e6;
+	float p_symbolrate = 9600;
+	uint32_t p_syncword = 0x1ACFFC1D;
+	bool p_tx = 0;
 
-	conf->radio = (struct radio_conf) {
-		.samplerate = 250000,
-		.rx_centerfreq = 437e6,
-		.tx_centerfreq = 437e6,
+	int i;
+	for(i=1; i<argc-1; i++) {
+		PARAMETERF(samplerate)
+		PARAMETERF(rxcenter)
+		PARAMETERF(txcenter)
+		PARAMETERF(rxfreq)
+		PARAMETERF(txfreq);
+		PARAMETERF(symbolrate)
+		PARAMETERI(syncword)  // atoi doesn't understand hex though :(
+		//PARAMETER()
+	}
+
+	(void)argc; (void)argv;
+	memset(suo, 0, sizeof(*suo));
+
+	suo->radio_conf = (struct radio_conf) {
+		.samplerate = p_samplerate,
+		.rx_centerfreq = p_rxcenter,
+		.tx_centerfreq = p_txcenter,
 		.rx_gain = 60,
 		.tx_gain = 60,
 		.rx_channel = 0,
 		.tx_channel = 0,
-		.tx_on = 1,
+		.tx_on = p_tx,
 		.rx_tx_latency = 50000000,
 		.driver = "uhd",
 		.rx_antenna = "TX/RX",
 		.tx_antenna = "TX/RX"
 	};
 
-	float receivefreq = 437.038e6, transmitfreq = 437.038e6;
-	uint32_t syncword = 0x1ACFFC1D;
+	int receiver_type = 0, transmitter_type = 0,
+		decoder_type = 0, encoder_type = 0,
+		output_type = 0, input_type = 0;
 
-	conf->receiver = &simple_receiver_code;
-	ALLOC(conf->receiver_conf, struct simple_receiver_conf)
-	= (struct simple_receiver_conf) {
-		.samplerate = conf->radio.samplerate, .symbolrate = 9600,
-		.centerfreq = receivefreq - conf->radio.rx_centerfreq,
-		.syncword = syncword, .synclen = 32,
-		.framelen = 30*8
-	};
+	if(receiver_type == 0) {
+		suo->receiver = &simple_receiver_code;
+		struct simple_receiver_conf c = {
+			.samplerate = p_samplerate, .symbolrate = p_symbolrate,
+			.centerfreq = p_rxfreq - p_rxcenter,
+			.syncword = p_syncword, .synclen = 32,
+			.framelen = 30*8
+		};
+		suo->receiver_arg = suo->receiver->init(&c);
+	}
 
-	conf->transmitter = &simple_transmitter_code;
-	ALLOC(conf->transmitter_conf, struct simple_transmitter_conf)
-	= (struct simple_transmitter_conf) {
-		.samplerate = conf->radio.samplerate, .symbolrate = 9600,
-		.centerfreq = transmitfreq - conf->radio.tx_centerfreq,
-		.modindex = 0.5
-	};
+	if(p_tx && transmitter_type == 0) {
+		suo->transmitter = &simple_transmitter_code;
+		struct simple_transmitter_conf c = {
+			.samplerate = p_samplerate, .symbolrate = p_symbolrate,
+			.centerfreq = p_txfreq - p_txcenter,
+			.modindex = 0.5
+		};
+		suo->transmitter_arg = suo->transmitter->init(&c);
+	}
 
-	conf->decoder = &basic_decoder_code;
-	ALLOC(conf->decoder_conf, struct basic_decoder_conf)
-	= (struct basic_decoder_conf) {
-		.lsb_first = 0
-	};
+	if(decoder_type == 0) {
+		suo->decoder = &basic_decoder_code;
+		struct basic_decoder_conf c = {
+			.lsb_first = 0
+		};
+		suo->decoder_arg = suo->decoder->init(&c);
+	}
 
-	conf->encoder = &basic_encoder_code;
-	ALLOC(conf->encoder_conf, struct basic_encoder_conf)
-	= (struct basic_encoder_conf) {
-		.lsb_first = 0,
-		.syncword = 0xAAAAAAAA00000000ULL | syncword,
-		.synclen = 64
-	};
+	if(p_tx && encoder_type == 0) {
+		suo->encoder = &basic_encoder_code;
+		struct basic_encoder_conf c = {
+			.lsb_first = 0,
+			.syncword = 0xAAAAAAAA00000000ULL | p_syncword,
+			.synclen = 64
+		};
+		suo->encoder_arg = suo->encoder->init(&c);
+	}
 
-	conf->rx_output = &zmq_rx_output_code;
-	ALLOC(conf->rx_output_conf, struct zmq_rx_output_conf)
-	= (struct zmq_rx_output_conf) {
-		.zmq_addr = "tcp://*:43700"
-	};
+	if(output_type == 0) {
+		suo->rx_output = &zmq_rx_output_code;
+		struct zmq_rx_output_conf c = {
+			.zmq_addr = "tcp://*:43700"
+		};
+		suo->rx_output_arg = suo->rx_output->init(&c);
+	}
 
-	conf->tx_input = &zmq_tx_input_code;
-	ALLOC(conf->tx_input_conf, struct zmq_tx_input_conf)
-	= (struct zmq_tx_input_conf) {
-		.zmq_addr = "tcp://*:43701"
-	};
+	if(p_tx && input_type == 0) {
+		suo->tx_input = &zmq_tx_input_code;
+		struct zmq_tx_input_conf c = {
+			.zmq_addr = "tcp://*:43701"
+		};
+		suo->tx_input_arg = suo->tx_input->init(&c);
+	}
+
+
+	suo->rx_output  ->set_callbacks(suo->rx_output_arg, suo->decoder, suo->decoder_arg);
+	suo->receiver   ->set_callbacks(suo->receiver_arg, suo->rx_output, suo->rx_output_arg);
+
+	if(p_tx) {
+		suo->tx_input   ->set_callbacks(suo->tx_input_arg, suo->encoder, suo->encoder_arg);
+		suo->transmitter->set_callbacks(suo->transmitter_arg, suo->tx_input, suo->tx_input_arg);
+	}
+
+	return 0;
+}
+
+
+int deinitialize(struct suo *suo)
+{
+	if(suo->rx_output_arg)
+		suo->rx_output->destroy(suo->rx_output_arg);
+
+	if(suo->tx_input_arg)
+		suo->tx_input->destroy(suo->tx_input_arg);
 
 	return 0;
 }

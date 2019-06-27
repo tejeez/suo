@@ -63,8 +63,10 @@ static void *zmq_output_init(const void *confv)
 	self->z_decw = zmq_socket(zmq, ZMQ_PAIR);
 	ZMQCHECK(zmq_connect(self->z_decw, pair_name));
 
+#if 0
 	self->running = 1;
 	pthread_create(&self->decoder_thread, NULL, zmq_decoder_main, self);
+#endif
 
 	return self;
 
@@ -78,6 +80,11 @@ static int zmq_output_set_callbacks(void *arg, const struct decoder_code *decode
 	struct zmq_output *self = arg;
 	self->decoder = *decoder;
 	self->decoder_arg = decoder_arg;
+
+	/* Create thread only after callbacks have been set
+	 * so it doesn't accidentally try to call them before */
+	self->running = 1;
+	pthread_create(&self->decoder_thread, NULL, zmq_decoder_main, self);
 	return 0;
 }
 
@@ -201,8 +208,10 @@ static void *zmq_input_init(const void *confv)
 	self->z_txbuf_w = zmq_socket(zmq, ZMQ_PAIR);
 	ZMQCHECK(zmq_connect(self->z_txbuf_w, pair_name));
 
+#if 0
 	self->running = 1;
 	pthread_create(&self->encoder_thread, NULL, zmq_encoder_main, self);
+#endif
 
 	return self;
 fail:
@@ -216,6 +225,11 @@ int zmq_input_set_callbacks(void *arg, const struct encoder_code *encoder, void 
 	struct zmq_input *self = arg;
 	self->encoder = *encoder;
 	self->encoder_arg = encoder_arg;
+
+	/* Create thread only after callbacks have been set
+	 * so it doesn't accidentally try to call them before */
+	self->running = 1;
+	pthread_create(&self->encoder_thread, NULL, zmq_encoder_main, self);
 	return 0;
 }
 
