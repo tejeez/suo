@@ -12,29 +12,6 @@ struct radio_conf {
 	const char *driver, *rx_antenna, *tx_antenna;
 };
 
-#if 0
-struct configuration {
-	const struct receiver_code *receiver;
-	void *receiver_conf;
-
-	const struct transmitter_code *transmitter;
-	void *transmitter_conf;
-
-	const struct decoder_code *decoder;
-	void *decoder_conf;
-
-	const struct encoder_code *encoder;
-	void *encoder_conf;
-
-	const struct rx_output_code *rx_output;
-	void *rx_output_conf;
-
-	const struct tx_input_code *tx_input;
-	void *tx_input_conf;
-	
-	struct radio_conf radio;
-};
-#endif
 
 struct suo {
 	const struct receiver_code *receiver;

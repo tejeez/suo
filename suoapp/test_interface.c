@@ -1,5 +1,6 @@
 #include "libsuo/suo.h"
 #include <stdio.h>
+#include <string.h>
 
 struct test_output {
 	struct decoder_code decoder;
@@ -10,17 +11,12 @@ void *test_output_init(const void *conf)
 {
 	(void)conf;
 	struct test_output *self = malloc(sizeof(struct test_output));
-
-	struct basic_decoder_conf decconf =  {
-		.lsb_first = 0
-	};
-	self->decoder = basic_decoder_code;
-	self->decoder_arg = self->decoder.init(&decconf);
+	memset(self, 0, sizeof(*self));
 	return self;
 }
 
 
-int test_output_frame(void *arg, bit_t *bits, size_t nbits)
+int test_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_metadata *metadata)
 {
 	struct test_output *self = arg;
 	uint8_t decoded[0x200];
@@ -29,7 +25,7 @@ int test_output_frame(void *arg, bit_t *bits, size_t nbits)
 
 	for(i = 0; i < nbits; i++)
 		printf("%d", bits[i]);
-	printf("\n");
+	printf("\n\n");
 
 	ret = self->decoder.decode(self->decoder_arg, bits, nbits, decoded, 0x200);
 	if(ret >= 0) {
@@ -46,39 +42,78 @@ int test_output_frame(void *arg, bit_t *bits, size_t nbits)
 	} else {
 		printf("Decode failed (%d)\n", ret);
 	}
+	printf("Timestamp: %lld   CFO: %E  CFOD: %E  RSSI: %E  SNR: %E  BER: %E  Mode: %u\n\n",
+		(long long)metadata->timestamp,
+		(double)metadata->cfo, (double)metadata->cfod,
+		(double)metadata->rssi, (double)metadata->snr,
+		(double)metadata->ber, metadata->mode);
 	return 0;
 }
 
 
-const struct frame_output_code test_output_code = { test_output_init, test_output_frame };
+int test_output_destroy(void *arg)
+{
+	free(arg);
+	return 0;
+}
+
+
+int test_output_set_callbacks(void *arg, const struct decoder_code *decoder, void *decoder_arg)
+{
+	struct test_output *self = arg;
+	self->decoder = *decoder;
+	self->decoder_arg = decoder_arg;
+	return 0;
+}
+
+
+const struct rx_output_code test_rx_output_code = { test_output_init, test_output_destroy, test_output_set_callbacks, test_output_frame };
 
 
 
 /* Transmitter testing things */
-void *test_framer_init(const void *conf)
+
+struct test_input {
+	struct encoder_code encoder;
+	void *encoder_arg;
+};
+
+
+void *test_input_init(const void *conf)
 {
 	(void)conf;
-	return NULL;
+	struct test_input *self = malloc(sizeof(struct test_input));
+	memset(self, 0, sizeof(*self));
+	return self;
 }
 
 
-int test_input_get_frame(void *arg, bit_t *bits, size_t maxbits, struct transmitter_metadata *metadata)
+int test_input_destroy(void *arg)
 {
-	(void)arg;
-	const uint8_t packet[] = {
-		0x55,0x55,0x55,0x55,0x55,0x55,
-		0x1A,0xCF,0xFC,0x1D,
-		't','e','s','t','i',0,0,0,0 };
-	if(metadata->timestamp % 4000000000LL < 100000000LL) {
-		size_t len = sizeof(packet)*8;
-		if(len > maxbits) len = maxbits;
-		size_t i;
-		for(i=0; i<len; i++)
-			bits[i] = 1 & (packet[i/8] >> (7&(7-i)));
-		return len;
+	free(arg);
+	return 0;
+}
+
+
+int test_input_set_callbacks(void *arg, const struct encoder_code *encoder, void *encoder_arg)
+{
+	struct test_input *self = arg;
+	self->encoder = *encoder;
+	self->encoder_arg = encoder_arg;
+	return 0;
+}
+
+
+int test_input_get_frame(void *arg, bit_t *bits, size_t maxbits, timestamp_t timestamp, struct tx_metadata *metadata)
+{
+	struct test_input *self = arg;
+	(void)metadata;
+	if(timestamp % 4000000000LL < 100000000LL) {
+		const uint8_t packet[20] = "testi";
+		return self->encoder.encode(self->encoder_arg, bits, maxbits, packet, 20);
 	}
 	return -1;
 }
 
 
-const struct tx_input_code test_input_code = { test_framer_init, test_input_get_frame };
+const struct tx_input_code test_tx_input_code = { test_input_init, test_input_destroy, test_input_set_callbacks, test_input_get_frame };

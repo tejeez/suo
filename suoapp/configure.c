@@ -4,6 +4,7 @@
 #include "libsuo/basic_decoder.h"
 #include "libsuo/basic_encoder.h"
 #include "zmq_interface.h"
+#include "test_interface.h"
 #include <string.h>
 
 #define PARAMETERF(name) if(strcmp(argv[i], #name) == 0) { p_##name = atof(argv[i+1]); i++; continue; }
@@ -17,7 +18,7 @@ int configure(struct suo *suo, int argc, char *argv[])
 	float p_rxfreq = 437.038e6, p_txfreq = 437.038e6;
 	float p_symbolrate = 9600;
 	uint32_t p_syncword = 0x1ACFFC1D;
-	bool p_tx = 0;
+	bool p_tx = 0, p_zmq = 0;
 
 	int i;
 	for(i=1; i<argc-1; i++) {
@@ -28,6 +29,8 @@ int configure(struct suo *suo, int argc, char *argv[])
 		PARAMETERF(txfreq);
 		PARAMETERF(symbolrate)
 		PARAMETERI(syncword)  // atoi doesn't understand hex though :(
+		PARAMETERI(tx)
+		PARAMETERI(zmq)
 		//PARAMETER()
 	}
 
@@ -51,7 +54,7 @@ int configure(struct suo *suo, int argc, char *argv[])
 
 	int receiver_type = 0, transmitter_type = 0,
 		decoder_type = 0, encoder_type = 0,
-		output_type = 0, input_type = 0;
+		output_type = p_zmq ? 1 : 0, input_type = p_zmq ? 1 : 0;
 
 	if(receiver_type == 0) {
 		suo->receiver = &simple_receiver_code;
@@ -93,6 +96,10 @@ int configure(struct suo *suo, int argc, char *argv[])
 	}
 
 	if(output_type == 0) {
+		suo->rx_output = &test_rx_output_code;
+		suo->rx_output_arg = suo->rx_output->init(NULL);
+
+	} else if(output_type == 1) {
 		suo->rx_output = &zmq_rx_output_code;
 		struct zmq_rx_output_conf c = {
 			.zmq_addr = "tcp://*:43700"
@@ -101,6 +108,10 @@ int configure(struct suo *suo, int argc, char *argv[])
 	}
 
 	if(p_tx && input_type == 0) {
+		suo->tx_input = &test_tx_input_code;
+		suo->tx_input_arg = suo->tx_input->init(NULL);
+
+	} else if(p_tx && input_type == 1) {
 		suo->tx_input = &zmq_tx_input_code;
 		struct zmq_tx_input_conf c = {
 			.zmq_addr = "tcp://*:43701"
