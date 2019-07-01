@@ -22,6 +22,7 @@ struct simple_receiver {
 	bool receiving_frame;
 
 	float fm_dc, fm_level0, fm_level1; /* Used by AFC */
+	float est_power; /* estimates for metadata */
 
 	/* liquid-dsp objects */
 	nco_crcf l_nco;
@@ -65,8 +66,9 @@ static void *simple_receiver_init(const void *conf_v)
 	self->l_nco = nco_crcf_create(LIQUID_NCO);
 	nco_crcf_set_frequency(self->l_nco, pi2f * c.centerfreq / c.samplerate);
 
-	self->l_symsync = symsync_rrrf_create_rnyquist(LIQUID_FIRFILT_GMSKRX, OVERSAMPLING, 3, 1.0f, 32);
-	symsync_rrrf_set_lf_bw(self->l_symsync, 0.01f);
+	self->l_symsync = symsync_rrrf_create_rnyquist(LIQUID_FIRFILT_GMSKRX, OVERSAMPLING, 7, 0.5f, 32);
+	//self->l_symsync = symsync_rrrf_create_rnyquist(LIQUID_FIRFILT_RRC, OVERSAMPLING, 7, 1.0f, 32);
+	symsync_rrrf_set_lf_bw(self->l_symsync, 0.0001f);
 
 	return self;
 }
@@ -92,8 +94,8 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 		if(framepos == framelen) {
 			self->output.frame(self->output_arg, self->framebuf, framelen, &self->metadata);
 			receiving_frame = 0;
-			//printf("End:   %7.4f %7.4f %7.4f\n", (double)self->fm_dc, (double)self->fm_level0, (double)self->fm_level1);
-			self->metadata.cfo = self->fm_dc; /* TODO: convert to Hz */
+			//printf("End:   %7.4f %7.4f %7.4f\n", (double)self->fm_dc,(double)self->fm_level0, (double)self->fm_level1);
+			symsync_rrrf_unlock(self->l_symsync);
 		}
 	} else {
 		receiving_frame = 0;
@@ -113,9 +115,15 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 			framepos = 0;
 			receiving_frame = 1;
 			//printf("Start: %7.4f %7.4f %7.4f\n", (double)self->fm_dc, (double)self->fm_level0, (double)self->fm_level1);
+
+			/* Fill in some metadata at start of the frame */
+			self->metadata.cfo = self->fm_dc; /* TODO: convert to Hz */
+			self->metadata.rssi = 10.0f * log10f(self->est_power);
+
 #if 0
 			printf("_%d_", syncerrs);
 #endif
+			symsync_rrrf_lock(self->l_symsync);
 		}
 	}
 
@@ -131,12 +139,18 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 }
 
 
+static inline float mag2f(float complex v)
+{
+	return crealf(v)*crealf(v) + cimagf(v)*cimagf(v);
+}
+
+
 static int simple_receiver_execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t timestamp)
 {
 	struct simple_receiver *self = arg;
 
 	/* Copy some often used variables to local variables */
-	float fm_dc = self->fm_dc, fm_level0 = self->fm_level0, fm_level1 = self->fm_level1;
+	float fm_dc = self->fm_dc, fm_level0 = self->fm_level0, fm_level1 = self->fm_level1, est_power = self->est_power;
 
 	/* Allocate small buffers from stack */
 	sample_t samples2[self->resampint];
@@ -159,8 +173,11 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 		for(si2 = 0; si2 < nsamp2; si2++) {
 			float fm_demodulated = 0, synchronized = 0;
 			unsigned nsynchronized = 0;
+			sample_t s2 = samples2[si2];
 
-			freqdem_demodulate(self->l_fdem, samples2[si2], &fm_demodulated);
+			est_power += (mag2f(s2) - est_power) * 0.01f;
+
+			freqdem_demodulate(self->l_fdem, s2, &fm_demodulated);
 
 			/* Simple alternative to AFC: track DC offset in FM demodulator
 			 * output. When looking for a preamble, just run it as
@@ -199,6 +216,7 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 				self->fm_dc = fm_dc;
 				self->fm_level0 = fm_level0;
 				self->fm_level1 = fm_level1;
+				self->est_power = est_power;
 
 				simple_deframer_execute(self, decision);
 			}
@@ -207,6 +225,7 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 		self->fm_dc = fm_dc;
 		//self->fm_level0 = fm_level0;
 		//self->fm_level1 = fm_level1;
+		self->est_power = est_power;
 		
 #if 0
 		/* Simple test: periodically output some random frames */

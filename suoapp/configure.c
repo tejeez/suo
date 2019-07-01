@@ -6,10 +6,13 @@
 #include "zmq_interface.h"
 #include "test_interface.h"
 #include <string.h>
+#include <stdio.h>
 
 #define PARAMETERF(name) if(strcmp(argv[i], #name) == 0) { p_##name = atof(argv[i+1]); i++; continue; }
 
 #define PARAMETERI(name) if(strcmp(argv[i], #name) == 0) { p_##name = atoi(argv[i+1]); i++; continue; }
+
+#define PARAMETERC(name) if(strcmp(argv[i], #name) == 0) { p_##name = argv[i+1]; i++; continue; }
 
 int configure(struct suo *suo, int argc, char *argv[])
 {
@@ -18,7 +21,9 @@ int configure(struct suo *suo, int argc, char *argv[])
 	float p_rxfreq = 437.038e6, p_txfreq = 437.038e6;
 	float p_symbolrate = 9600;
 	uint32_t p_syncword = 0x1ACFFC1D;
+	unsigned p_framelength = 255;
 	bool p_tx = 0, p_zmq = 0;
+	const char *p_rxant = NULL, *p_txant = NULL;
 
 	int i;
 	for(i=1; i<argc-1; i++) {
@@ -29,12 +34,19 @@ int configure(struct suo *suo, int argc, char *argv[])
 		PARAMETERF(txfreq);
 		PARAMETERF(symbolrate)
 		PARAMETERI(syncword)  // atoi doesn't understand hex though :(
+		PARAMETERI(framelength)
 		PARAMETERI(tx)
 		PARAMETERI(zmq)
-		//PARAMETER()
+		PARAMETERC(rxant)
+		PARAMETERC(txant)
+		/* Skip SoapySDR parameters (parsed in main) */
+		if(strncmp(argv[i], "soapy-", 6) == 0) {
+			i++;
+			continue;
+		}
+		fprintf(stderr, "Unknown parameter %s\n", argv[i]);
 	}
 
-	(void)argc; (void)argv;
 	memset(suo, 0, sizeof(*suo));
 
 	suo->radio_conf = (struct radio_conf) {
@@ -42,14 +54,13 @@ int configure(struct suo *suo, int argc, char *argv[])
 		.rx_centerfreq = p_rxcenter,
 		.tx_centerfreq = p_txcenter,
 		.rx_gain = 60,
-		.tx_gain = 60,
+		.tx_gain = 80,
 		.rx_channel = 0,
 		.tx_channel = 0,
 		.tx_on = p_tx,
 		.rx_tx_latency = 50000000,
-		.driver = "uhd",
-		.rx_antenna = "TX/RX",
-		.tx_antenna = "TX/RX"
+		.rx_antenna = p_rxant,
+		.tx_antenna = p_txant
 	};
 
 	int receiver_type = 0, transmitter_type = 0,
@@ -62,7 +73,7 @@ int configure(struct suo *suo, int argc, char *argv[])
 			.samplerate = p_samplerate, .symbolrate = p_symbolrate,
 			.centerfreq = p_rxfreq - p_rxcenter,
 			.syncword = p_syncword, .synclen = 32,
-			.framelen = 30*8
+			.framelen = p_framelength*8
 		};
 		suo->receiver_arg = suo->receiver->init(&c);
 	}

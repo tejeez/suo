@@ -9,7 +9,7 @@ struct radio_conf {
 	size_t rx_channel, tx_channel;
 	bool tx_on;
 	long long rx_tx_latency; /* ns */
-	const char *driver, *rx_antenna, *tx_antenna;
+	const char *rx_antenna, *tx_antenna;
 };
 
 

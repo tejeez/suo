@@ -1,6 +1,7 @@
 #include "libsuo/suo.h"
 #include "configure.h"
 
+#include <string.h>
 #include <stdio.h>
 #include <signal.h>
 #include <SoapySDR/Device.h>
@@ -61,7 +62,13 @@ int main(int argc, char *argv[])
 
 
 	SoapySDRKwargs args = {};
-	SoapySDRKwargs_set(&args, "driver", radioconf->driver);
+	/* Pass command line parameters prefixed with soapy- */
+	int i;
+	for(i=1; i<argc-1; i++) {
+		if(strncmp(argv[i], "soapy-", 6) == 0) {
+			SoapySDRKwargs_set(&args, argv[i]+6, argv[i+1]);
+		}
+	}
 	sdr = SoapySDRDevice_make(&args);
 	SoapySDRKwargs_clear(&args);
 	if(sdr == NULL) {

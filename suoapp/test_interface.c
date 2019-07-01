@@ -42,7 +42,7 @@ int test_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_meta
 	} else {
 		printf("Decode failed (%d)\n", ret);
 	}
-	printf("Timestamp: %lld   CFO: %E  CFOD: %E  RSSI: %E  SNR: %E  BER: %E  Mode: %u\n\n",
+	printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  Mode: %u\n\n",
 		(long long)metadata->timestamp,
 		(double)metadata->cfo, (double)metadata->cfod,
 		(double)metadata->rssi, (double)metadata->snr,
@@ -108,7 +108,7 @@ int test_input_get_frame(void *arg, bit_t *bits, size_t maxbits, timestamp_t tim
 {
 	struct test_input *self = arg;
 	(void)metadata;
-	if(timestamp % 4000000000LL < 100000000LL) {
+	if(timestamp % 400000000LL < 100000000LL) {
 		const uint8_t packet[20] = "testi";
 		return self->encoder.encode(self->encoder_arg, bits, maxbits, packet, 20);
 	}
