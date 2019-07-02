@@ -1,9 +1,14 @@
-This is a modem library which aims to be reasonably portable, modular
+Suo is a modem library which aims to be reasonably portable, modular
 and configurable in order to make to make modem implementations reusable
-for different applications.
+for different applications in different environments.
+It also includes an application to run the modems on systems supporting
+SoapySDR, so it can be easily used to implement various communication
+systems using common SDR hardware.
 
-Another goal is to have good demodulation performance for weak signals
-to make it usable for applications such as satellite communication.
+Currently, suo is primarily made for FSK packet waveforms similar to
+those used by typical small radio chips.
+There is a simple receiver implementation which supports the common
+preamble-syncword-payload format with 2-GFSK modulation.
 
 The library defines interfaces based on function calls and callbacks
 to separate the less platform-dependent DSP code from the more platform
@@ -12,38 +17,40 @@ Function calls between parts happen through function pointers placed in
 structs, so that parts of the code can be changed by just assigning
 a different value to a function pointer struct.
 
-For development purposes, there is a simple receiver implementation
-for FSK packet signals. It's based on FM demodulation, so it does not
-have the best weak-signal performance, but it helps test the interfaces
-between things before a better receiver works.
-
-There is also a better, modular receiver implementation which tries
-to separate preamble detection (or more generally initial acquisition),
-demodulation (including tracking of symbol sync, etc)
-and deframing from each other, although the parts are still quite
-closely tied together to allow also feedback between them.
+A better receiver implementation is being developed, where one of
+the goals is to have good demodulation performance for weak signals
+to make it usable for applications such as satellite communication,
+and also to support a wider range of modulations and framing formats.
+It tries to be somewhat more modular, separating preamble detection
+(or more generally initial acquisition), demodulation (including
+tracking of symbol sync, etc) and deframing from each other.
 It is still undergoing some refactoring and does not currently compile.
 
-Applications to run the modems are under suoapp/ directory. They have
-been developed on Linux but might work on other systems as well.
+Applications to run the modems are under suoapp/ directory.
 There is suo_file which just reads samples from stdin and prints
 decoded packets to stdout. This is useful for testing with recorded or
 simulated signals read from a file.
 It is also possible to pipe signals from a receiver into it.
 
-Another one is soapy_main which interfaces to SDRs through the SoapySDR
-library. It has been tested on USRP, rtl-sdr and xtrx.
-Output of decoded frames by something like ZeroMQ is planned.
+Another one is suo_soapy which interfaces to SDRs through the SoapySDR
+library. It has been tested on USRP, rtl-sdr, LimeSDR and xtrx.
+
+Output of decoded frames by ZeroMQ is supported, so these modems can
+easily be interfaced to higher protocol layers running in a separate
+process. It does not yet support passing metadata (such as timestamps)
+to them, which may currently limit the possibilities to implement
+TDD-based protocols, but this will be added in future versions.
 
 It would also be possible to write GNU Radio wrappers to allow running
 the modems as a part of GNU Radio based applications.
-Another plan is to try running the library on a microcontroller-based
+Another plan is to try running libsuo on a microcontroller-based
 embedded SDR device which is not running any general purpose operating
 system.
 
 
 To compile:
 - Install liquid-dsp from https://github.com/jgaeddert/liquid-dsp
-- Install SoapySDR. On Ubuntu: apt install libsoapysdr-dev
+- Install SoapySDR and ZeroMQ. On Ubuntu:
+apt install libsoapysdr-dev libzmq3-dev
 - Install driver for your SDR device
 - Run make under suoapp directory
