@@ -16,13 +16,13 @@
 
 int configure(struct suo *suo, int argc, char *argv[])
 {
-	float p_samplerate = 500000;
-	float p_rxcenter = 437e6, p_txcenter = 437e6;
-	float p_rxfreq = 437.038e6, p_txfreq = 437.038e6;
+	float p_samplerate = 1e6;
+	float p_rxcenter = 433.8e6, p_txcenter = 433.8e6;
+	float p_rxfreq = 433.92e6, p_txfreq = 433.92e6;
 	float p_symbolrate = 9600;
 	uint32_t p_syncword = 0x1ACFFC1D;
-	unsigned p_framelength = 255;
-	bool p_tx = 0, p_zmq = 0;
+	unsigned p_bytes = 30;
+	bool p_rs = 0, p_tx = 0, p_zmq = 0;
 	const char *p_rxant = NULL, *p_txant = NULL;
 
 	int i;
@@ -34,7 +34,8 @@ int configure(struct suo *suo, int argc, char *argv[])
 		PARAMETERF(txfreq);
 		PARAMETERF(symbolrate)
 		PARAMETERI(syncword)  // atoi doesn't understand hex though :(
-		PARAMETERI(framelength)
+		PARAMETERI(bytes)
+		PARAMETERI(rs)
 		PARAMETERI(tx)
 		PARAMETERI(zmq)
 		PARAMETERC(rxant)
@@ -73,8 +74,10 @@ int configure(struct suo *suo, int argc, char *argv[])
 			.samplerate = p_samplerate, .symbolrate = p_symbolrate,
 			.centerfreq = p_rxfreq - p_rxcenter,
 			.syncword = p_syncword, .synclen = 32,
-			.framelen = p_framelength*8
+			.framelen = p_bytes*8
 		};
+		if (p_rs)
+			c.framelen += 32*8;
 		suo->receiver_arg = suo->receiver->init(&c);
 	}
 
@@ -91,18 +94,18 @@ int configure(struct suo *suo, int argc, char *argv[])
 	if(decoder_type == 0) {
 		suo->decoder = &basic_decoder_code;
 		struct basic_decoder_conf c = {
-			.lsb_first = 0
+			.lsb_first = 0,
+			.rs = p_rs
 		};
 		suo->decoder_arg = suo->decoder->init(&c);
 	}
 
 	if(p_tx && encoder_type == 0) {
 		suo->encoder = &basic_encoder_code;
-		struct basic_encoder_conf c = {
-			.lsb_first = 0,
-			.syncword = 0xAAAAAAAA00000000ULL | p_syncword,
-			.synclen = 64
-		};
+		struct basic_encoder_conf c = basic_encoder_defaults;
+		c.syncword = p_syncword;
+		c.synclen = 32;
+		c.rs = p_rs;
 		suo->encoder_arg = suo->encoder->init(&c);
 	}
 
@@ -113,7 +116,7 @@ int configure(struct suo *suo, int argc, char *argv[])
 	} else if(output_type == 1) {
 		suo->rx_output = &zmq_rx_output_code;
 		struct zmq_rx_output_conf c = {
-			.zmq_addr = "tcp://*:43700"
+			.zmq_addr = "tcp://*:43300"
 		};
 		suo->rx_output_arg = suo->rx_output->init(&c);
 	}
@@ -125,7 +128,7 @@ int configure(struct suo *suo, int argc, char *argv[])
 	} else if(p_tx && input_type == 1) {
 		suo->tx_input = &zmq_tx_input_code;
 		struct zmq_tx_input_conf c = {
-			.zmq_addr = "tcp://*:43701"
+			.zmq_addr = "tcp://*:43301"
 		};
 		suo->tx_input_arg = suo->tx_input->init(&c);
 	}

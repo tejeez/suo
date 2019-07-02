@@ -49,8 +49,9 @@ static uint8_t swap_byte_bit_order(uint8_t v)
 
 #define PKT_BITS 304
 #define MSG_DEC_BYTES 18
-static int efrk7_decode(void *arg, const bit_t *pktb, size_t len, uint8_t *decoded, size_t max_decoded_len)
+static int efrk7_decode(void *arg, const bit_t *pktb, size_t len, uint8_t *decoded, size_t max_decoded_len, struct rx_metadata *metadata)
 {
+	(void)metadata; // TODO
 	struct efrk7 *s = arg;
 	if(len != PKT_BITS || max_decoded_len < MSG_DEC_BYTES) return -1;
 	int i;

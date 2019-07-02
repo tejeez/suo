@@ -3,7 +3,7 @@
 #include "suo.h"
 
 struct basic_decoder_conf {
-	bool lsb_first;
+	bool lsb_first, rs;
 };
 
 extern const struct basic_decoder_conf basic_decoder_defaults;

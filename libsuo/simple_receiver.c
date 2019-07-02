@@ -7,7 +7,7 @@
 
 #define FRAMELEN_MAX 0x900
 #define OVERSAMPLING 4
-#define DEBUG3
+//#define DEBUG3
 
 static const float pi2f = 6.283185307179586f;
 

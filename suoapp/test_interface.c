@@ -27,7 +27,7 @@ int test_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_meta
 		printf("%d", bits[i]);
 	printf("\n\n");
 
-	ret = self->decoder.decode(self->decoder_arg, bits, nbits, decoded, 0x200);
+	ret = self->decoder.decode(self->decoder_arg, bits, nbits, decoded, 0x200, metadata);
 	if(ret >= 0) {
 		for(i = 0; i < (size_t)ret; i++)
 			printf("%02x ", decoded[i]);
@@ -42,11 +42,12 @@ int test_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_meta
 	} else {
 		printf("Decode failed (%d)\n", ret);
 	}
-	printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  Mode: %u\n\n",
+	printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  OER: %E  Mode: %u\n\n",
 		(long long)metadata->timestamp,
 		(double)metadata->cfo, (double)metadata->cfod,
 		(double)metadata->rssi, (double)metadata->snr,
-		(double)metadata->ber, metadata->mode);
+		(double)metadata->ber, (double)metadata->oer,
+		metadata->mode);
 	return 0;
 }
 
@@ -109,8 +110,8 @@ int test_input_get_frame(void *arg, bit_t *bits, size_t maxbits, timestamp_t tim
 	struct test_input *self = arg;
 	(void)metadata;
 	if(timestamp % 400000000LL < 100000000LL) {
-		const uint8_t packet[20] = "testi";
-		return self->encoder.encode(self->encoder_arg, bits, maxbits, packet, 20);
+		const uint8_t packet[30] = "testidataa";
+		return self->encoder.encode(self->encoder_arg, bits, maxbits, packet, 30);
 	}
 	return -1;
 }

@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <signal.h>
 
+#define PRINT_DIAGNOSTICS
+
 /* One global ZeroMQ context, initialized only once */
 void *zmq = NULL;
 
@@ -102,7 +104,7 @@ static int zmq_output_destroy(void *arg)
 }
 
 
-#define BITS_MAXLEN 0x200
+#define BITS_MAXLEN 0x900
 #define DECODED_MAXLEN 0x200
 static void *zmq_decoder_main(void *arg)
 {
@@ -110,6 +112,11 @@ static void *zmq_decoder_main(void *arg)
 
 	bit_t bits[BITS_MAXLEN];
 	uint8_t decoded[DECODED_MAXLEN];
+	struct rx_metadata metadata_;
+	struct rx_metadata *metadata = &metadata_;
+
+	// TODO: pass metadata to this thread
+	memset(metadata, 0, sizeof(*metadata));
 
 	/* Read frames from the receiver-to-decoder queue
 	 * transmit buffer queue. */
@@ -121,7 +128,7 @@ static void *zmq_decoder_main(void *arg)
 			int nbits = nread / sizeof(bit_t);
 
 			int ndecoded = self->decoder.decode(self->decoder_arg,
-				bits, nbits, decoded, DECODED_MAXLEN);
+				bits, nbits, decoded, DECODED_MAXLEN, metadata);
 			assert(ndecoded <= DECODED_MAXLEN);
 
 			if(ndecoded >= 0) {
@@ -129,6 +136,16 @@ static void *zmq_decoder_main(void *arg)
 			} else {
 				/* Decode failed. TODO: send or save diagnostics somewhere */
 			}
+
+#ifdef PRINT_DIAGNOSTICS
+			printf("Decode: %d\n", ndecoded);
+			printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  OER: %E  Mode: %u\n\n",
+				(long long)metadata->timestamp,
+				(double)metadata->cfo, (double)metadata->cfod,
+				(double)metadata->rssi, (double)metadata->snr,
+				(double)metadata->ber, (double)metadata->oer,
+				metadata->mode);
+#endif
 		} else {
 			print_fail_zmq("zmq_recv", nread);
 			goto fail;
@@ -144,7 +161,8 @@ static int zmq_output_frame(void *arg, const bit_t *bits, size_t nbits, struct r
 {
 	struct zmq_output *self = arg;
 
-	printf("%lld %f\n", (long long)metadata->timestamp, (double)metadata->cfo);
+	// TODO: pass metadata to decoder thread
+	(void)metadata;
 
 	/* Non-blocking send to avoid blocking the receiver in case
 	 * decoder runs out of CPU time and ZMQ buffer fills up.

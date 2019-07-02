@@ -1,0 +1,20 @@
+Some examples on using the modem application
+
+Transmit test packets on USRP with default settings
+and just receive your own transmission at the same time:
+../suoapp/suo_soapy tx 1 soapy-driver uhd rxant TX/RX txant TX/RX
+
+Same thing on LimeSDR (or xtrx, just change the driver):
+../suoapp/suo_soapy tx 1 soapy-driver lime rxant LNAW txant BAND1
+
+
+
+Enable ZeroMQ interface and communicate between two SDRs
+using Reed-Solomon coding and 223-byte messages.
+Note how the modem transmit/receive frequency is a bit offset from
+the SDR center frequency to avoid possible 1/f noise and DC problems.
+
+../suoapp/suo_soapy txcenter 434e6 rxcenter 434e6 txfreq 433.8e6 rxfreq 433.8e6 symbolrate 5000 bytes 223 rs 1 zmq 1 tx 1 soapy-driver uhd txant TX/RX rxant TX/RX
+
+At the same time, start ./zmq_example.py
+and try chatting between two computers.

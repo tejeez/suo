@@ -25,14 +25,15 @@ struct rx_metadata {
 	float rssi; /* Received signal strength. Unit TBD */
 	float snr;  /* Signal-to-noise ratio. Definition TBD */
 	float ber;  /* Bit error rate */
+	float oer;  /* Octet error rate */
 	uint32_t mode; /* Modem-specific modulation and coding flags */
-	uint32_t reserved[7];
+	uint32_t reserved[6];
 };
 
 struct decoder_code {
 	void *(*init)    (const void *conf);
 	int   (*destroy) (void *);
-	int   (*decode)  (void *, const bit_t *bits, size_t nbits, uint8_t *decoded, size_t nbytes);
+	int   (*decode)  (void *, const bit_t *bits, size_t nbits, uint8_t *decoded, size_t nbytes, struct rx_metadata *);
 };
 
 struct rx_output_code {
