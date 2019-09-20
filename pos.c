@@ -154,7 +154,7 @@ uint8_t pos2val(pos_struct* data,uint8_t*message){
 int pos2text(uint8_t *data, char *text, int textlen) {
 	pos_struct p;
 	int h,m,s,t, rssi=0;
-	const char *myid = "SDR";
+	const char *myid = "SD1";
 	pos2val(&p, data);
 	t = p.time;
 	h = t / 3600;
@@ -162,7 +162,7 @@ int pos2text(uint8_t *data, char *text, int textlen) {
 	s = t - h* 3600 - m*60;
 	/*return snprintf(text, textlen, "$POS|ETRS-TM35FIN|%c%c%c|2017-08-12|%u:%u:%u|%lu|%lu|%f|%u*\n", tacmes->sender[0], tacmes->sender[1], tacmes->sender[2], h, m, s, tacmes->northing, tacmes->easting, tacmes->height, tacmes->sos);*/
 	return snprintf(text, textlen,
-	"$TACPOS|ETRS-TM35FIN|%c%c%c||UTC%d:%d:%d|%d|%d|%.2f|||OK|%d||%d|%s|%d|||*\n",
+	"$TACPOS|ETRS-TM35FIN|%c%c%c||UTC%02d:%02d:%02d|%d|%d|%.2f|||OK|%d||%d|%s|%d|||*\n",
 	p.sender[0], p.sender[1], p.sender[2],
 	h, m, s,
 	p.northing, p.easting, (double)p.height, p.sos, p.v_bat, myid, rssi);

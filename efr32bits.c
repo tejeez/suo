@@ -36,6 +36,25 @@ uint8_t swap_byte_bit_order(uint8_t v) {
 	((0x01&v) << 7);
 }
 
+/* Correct polynomial found by brute force search... */
+uint16_t pos_crc(uint8_t *data, int len) {
+	int i;
+	uint16_t crc = 0x0000;
+	const uint16_t poly = 0xA001; // 0x6000 also works
+	for (i=0; i<len; i++) {
+		int j;
+		uint8_t d = data[i];
+		for (j=0; j<8; j++) {
+			if ((d ^ crc) & 1)
+				crc = (crc >> 1) ^ poly;
+			else
+				crc =  crc >> 1;
+			d >>= 1;
+		}
+	}
+	return crc;
+}
+
 void pos_received(uint8_t *data, int len) {
 	char print_buf[1000]/*, *print_p = print_buf*/;
 	int i;
@@ -80,7 +99,12 @@ void pkt_received(int *pktb) {
 	}
 	printf("\n");
 	if(msg_dec[0] == 15) {
-		pos_received(msg_dec+1, 15);
+		uint16_t crc_rx = (msg_dec[16] << 8) | msg_dec[17];
+		uint16_t crc_c = pos_crc(msg_dec, 16);
+		if (crc_c == crc_rx)
+			pos_received(msg_dec+1, 15);
+		else
+			printf("CRC error %04x %04x\n", crc_rx, crc_c);
 	}
 	fflush(stdout);
 }
