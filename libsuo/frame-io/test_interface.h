@@ -1,7 +1,7 @@
-#ifndef TEST_INTERFACE_H
-#define TEST_INTERFACE_H
+#ifndef LIBSUO_TEST_INTERFACE_H
+#define LIBSUO_TEST_INTERFACE_H
 
-#include "libsuo/suo.h"
+#include "suo.h"
 
 struct test_rx_output_conf {
 	// no configuration

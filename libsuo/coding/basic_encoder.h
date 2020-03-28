@@ -1,5 +1,5 @@
-#ifndef BASIC_ENCODER_H
-#define BASIC_ENCODER_H
+#ifndef LIBSUO_BASIC_ENCODER_H
+#define LIBSUO_BASIC_ENCODER_H
 #include "suo.h"
 
 struct basic_encoder_conf {

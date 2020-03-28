@@ -1,5 +1,5 @@
-#ifndef BASIC_DECODER_H
-#define BASIC_DECODER_H
+#ifndef LIBSUO_BASIC_DECODER_H
+#define LIBSUO_BASIC_DECODER_H
 #include "suo.h"
 
 struct basic_decoder_conf {

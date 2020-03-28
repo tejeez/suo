@@ -1,5 +1,5 @@
-#ifndef MODULAR_RECEIVER_H
-#define MODULAR_RECEIVER_H
+#ifndef LIBSUO_MODULAR_RECEIVER_H
+#define LIBSUO_MODULAR_RECEIVER_H
 #include "suo.h"
 
 struct acq_code {

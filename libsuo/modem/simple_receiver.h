@@ -1,5 +1,5 @@
-#ifndef SIMPLE_RECEIVER_H
-#define SIMPLE_RECEIVER_H
+#ifndef LIBSUO_SIMPLE_RECEIVER_H
+#define LIBSUO_SIMPLE_RECEIVER_H
 #include "suo.h"
 
 struct simple_receiver_conf {

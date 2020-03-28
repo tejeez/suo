@@ -1,4 +1,5 @@
 #include "simple_transmitter.h"
+#include "suo_macros.h"
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -125,5 +126,19 @@ static int execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t 
 }
 
 
-const struct transmitter_code simple_transmitter_code = { init, destroy, set_callbacks, execute };
+const struct simple_transmitter_conf simple_transmitter_defaults = {
+	.samplerate = 1e6,
+	.symbolrate = 9600,
+	.centerfreq = 100000,
+	.modindex = 0.5
+};
+
+CONFIG_BEGIN(simple_transmitter)
+CONFIG_F(samplerate)
+CONFIG_F(symbolrate)
+CONFIG_F(centerfreq)
+CONFIG_F(modindex)
+CONFIG_END()
+
+const struct transmitter_code simple_transmitter_code = { init, destroy, init_conf, set_conf, set_callbacks, execute };
 

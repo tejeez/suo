@@ -17,15 +17,6 @@ Function calls between parts happen through function pointers placed in
 structs, so that parts of the code can be changed by just assigning
 a different value to a function pointer struct.
 
-A better receiver implementation is being developed, where one of
-the goals is to have good demodulation performance for weak signals
-to make it usable for applications such as satellite communication,
-and also to support a wider range of modulations and framing formats.
-It tries to be somewhat more modular, separating preamble detection
-(or more generally initial acquisition), demodulation (including
-tracking of symbol sync, etc) and deframing from each other.
-It is still undergoing some refactoring and does not currently compile.
-
 Applications to run the modems are under suoapp/ directory.
 There is suo_file which just reads samples from stdin and prints
 decoded packets to stdout. This is useful for testing with recorded or
@@ -53,4 +44,5 @@ To compile:
 - Install SoapySDR and ZeroMQ. On Ubuntu:
 apt install libsoapysdr-dev libzmq3-dev
 - Install driver for your SDR device
+- Run make under libsuo directory
 - Run make under suoapp directory

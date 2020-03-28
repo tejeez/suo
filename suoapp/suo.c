@@ -1,4 +1,4 @@
-#include "libsuo/soapysdr_io.h"
+#include "suo.h"
 #include "configure.h"
 
 #include <string.h>

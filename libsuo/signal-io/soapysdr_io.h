@@ -1,5 +1,5 @@
-#ifndef SOAPYSDR_IO_H
-#define SOAPYSDR_IO_H
+#ifndef LIBSUO_SOAPYSDR_IO_H
+#define LIBSUO_SOAPYSDR_IO_H
 #include "suo.h"
 
 struct soapysdr_io_conf {

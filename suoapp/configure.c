@@ -1,15 +1,18 @@
 #include "configure.h"
-#include "libsuo/simple_receiver.h"
-#include "libsuo/simple_transmitter.h"
-#include "libsuo/basic_decoder.h"
-#include "libsuo/basic_encoder.h"
-#include "libsuo/soapysdr_io.h"
-#include "zmq_interface.h"
-#include "test_interface.h"
+#include "modem/simple_receiver.h"
+#include "modem/simple_transmitter.h"
+#include "coding/basic_decoder.h"
+#include "coding/basic_encoder.h"
+#include "signal-io/soapysdr_io.h"
+#include "frame-io/zmq_interface.h"
+#include "frame-io/test_interface.h"
 #include <string.h>
 #include <stdio.h>
 
 
+/* Read a section of a configuration file and initialize
+ * a given suo module accordingly.
+ * If f == NULL, initialize with the default configuration. */
 void *read_conf_and_init(const struct any_code *code, FILE *f)
 {
 	void *conf = code->init_conf();
@@ -61,12 +64,16 @@ int read_configuration(struct suo *suo, FILE *f)
 	suo->receiver_arg    = read_conf_and_init((const struct any_code*)suo->receiver, f);
 	suo->decoder         = &basic_decoder_code;
 	suo->decoder_arg     = read_conf_and_init((const struct any_code*)suo->decoder, f);
-#if 0
+	suo->rx_output       = &zmq_rx_output_code;
+	suo->rx_output_arg   = read_conf_and_init((const struct any_code*)suo->rx_output, f);
+
 	suo->transmitter     = &simple_transmitter_code;
 	suo->transmitter_arg = read_conf_and_init((const struct any_code*)suo->transmitter, f);
 	suo->encoder         = &basic_encoder_code;
 	suo->encoder_arg     = read_conf_and_init((const struct any_code*)suo->encoder, f);
-#endif
+	suo->tx_input        = &zmq_tx_input_code;
+	suo->tx_input_arg    = read_conf_and_init((const struct any_code*)suo->tx_input, f);
+
 	suo->signal_io       = &soapysdr_io_code;
 	suo->signal_io_arg   = read_conf_and_init((const struct any_code*)suo->signal_io, f);
 	return 0;
@@ -75,8 +82,6 @@ int read_configuration(struct suo *suo, FILE *f)
 
 int configure(struct suo *suo, int argc, char *argv[])
 {
-	bool p_tx = 0, p_zmq = 0;
-
 	memset(suo, 0, sizeof(*suo));
 
 	FILE *f = NULL;
@@ -86,38 +91,12 @@ int configure(struct suo *suo, int argc, char *argv[])
 	if (f != NULL)
 		fclose(f);
 
-	int
-		output_type = p_zmq ? 1 : 0, input_type = p_zmq ? 1 : 0;
-
-	if(output_type == 0) {
-		suo->rx_output = &test_rx_output_code;
-		suo->rx_output_arg = suo->rx_output->init(NULL);
-
-	} else if(output_type == 1) {
-		suo->rx_output = &zmq_rx_output_code;
-		struct zmq_rx_output_conf c = {
-			.zmq_addr = "tcp://*:43300"
-		};
-		suo->rx_output_arg = suo->rx_output->init(&c);
+	if (suo->receiver != NULL) {
+		suo->rx_output  ->set_callbacks(suo->rx_output_arg, suo->decoder, suo->decoder_arg);
+		suo->receiver   ->set_callbacks(suo->receiver_arg, suo->rx_output, suo->rx_output_arg);
 	}
 
-	if(p_tx && input_type == 0) {
-		suo->tx_input = &test_tx_input_code;
-		suo->tx_input_arg = suo->tx_input->init(NULL);
-
-	} else if(p_tx && input_type == 1) {
-		suo->tx_input = &zmq_tx_input_code;
-		struct zmq_tx_input_conf c = {
-			.zmq_addr = "tcp://*:43301"
-		};
-		suo->tx_input_arg = suo->tx_input->init(&c);
-	}
-
-
-	suo->rx_output  ->set_callbacks(suo->rx_output_arg, suo->decoder, suo->decoder_arg);
-	suo->receiver   ->set_callbacks(suo->receiver_arg, suo->rx_output, suo->rx_output_arg);
-
-	if(p_tx) {
+	if (suo->transmitter != NULL) {
 		suo->tx_input   ->set_callbacks(suo->tx_input_arg, suo->encoder, suo->encoder_arg);
 		suo->transmitter->set_callbacks(suo->transmitter_arg, suo->tx_input, suo->tx_input_arg);
 	}
@@ -130,10 +109,10 @@ int configure(struct suo *suo, int argc, char *argv[])
 
 int deinitialize(struct suo *suo)
 {
-	if(suo->rx_output_arg)
+	if (suo->rx_output != NULL)
 		suo->rx_output->destroy(suo->rx_output_arg);
 
-	if(suo->tx_input_arg)
+	if (suo->tx_input != NULL)
 		suo->tx_input->destroy(suo->tx_input_arg);
 
 	return 0;

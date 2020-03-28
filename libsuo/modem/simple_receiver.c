@@ -325,8 +325,8 @@ static int simple_receiver_set_callbacks(void *arg, const struct rx_output_code 
 const struct simple_receiver_conf simple_receiver_defaults = {
 	.samplerate = 1e6,
 	.symbolrate = 9600,
-	.centerfreq = 0,
-	.syncword = 0,
+	.centerfreq = 100000,
+	.syncword = 0x36994625,
 	.synclen = 32,
 	.framelen = 800
 };

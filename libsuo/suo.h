@@ -41,10 +41,8 @@ struct decoder_code {
 struct rx_output_code {
 	void *(*init)    (const void *conf);
 	int   (*destroy) (void *);
-#if 0
 	void *(*init_conf)     (void);
 	int   (*set_conf)      (void *conf, char *parameter, char *value);
-#endif
 	int   (*set_callbacks) (void *, const struct decoder_code *, void *decoder_arg);
 	int   (*frame)   (void *, const bit_t *bits, size_t nbits, struct rx_metadata *);
 };
@@ -99,10 +97,8 @@ struct encoder_code {
 struct tx_input_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
-#if 0
 	void *(*init_conf)(void);
 	int   (*set_conf) (void *conf, char *parameter, char *value);
-#endif
 	int   (*set_callbacks) (void *, const struct encoder_code *, void *encoder_arg);
 	int   (*get_frame) (void *, bit_t *bits, size_t nbits, timestamp_t timestamp, struct tx_metadata *);
 };

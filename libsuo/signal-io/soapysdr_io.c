@@ -13,10 +13,10 @@
 #include <SoapySDR/Formats.h>
 
 struct soapysdr_io {
-    const struct receiver_code *receiver;
-    void *receiver_arg;
-    const struct transmitter_code *transmitter;
-    void *transmitter_arg;
+	const struct receiver_code *receiver;
+	void *receiver_arg;
+	const struct transmitter_code *transmitter;
+	void *transmitter_arg;
 	struct soapysdr_io_conf conf;
 };
 
@@ -45,7 +45,7 @@ typedef unsigned char sample1_t[2];
 
 int execute(void *arg)
 {
-    struct soapysdr_io *self = arg;
+	struct soapysdr_io *self = arg;
 	SoapySDRDevice *sdr = NULL;
 	SoapySDRStream *rxstream = NULL, *txstream = NULL;
 
@@ -74,8 +74,8 @@ int execute(void *arg)
 		}
 	}
 #else
-    // TODO: configuration for these
-    SoapySDRKwargs_set(&args, "driver", "lime");
+	// TODO: configuration for these
+	SoapySDRKwargs_set(&args, "driver", "lime");
 #endif
 	sdr = SoapySDRDevice_make(&args);
 	SoapySDRKwargs_clear(&args);
@@ -246,47 +246,47 @@ exit_soapy:
 
 void *init(const void *conf)
 {
-    struct soapysdr_io *self;
-    self = malloc(sizeof(*self));
-    if (self == NULL)
-        return self;
-    self->conf = *(struct soapysdr_io_conf*)conf;
-    return self;
+	struct soapysdr_io *self;
+	self = malloc(sizeof(*self));
+	if (self == NULL)
+		return self;
+	self->conf = *(struct soapysdr_io_conf*)conf;
+	return self;
 }
 
 
 int destroy(void *arg)
 {
-    // TODO
-    (void)arg;
-    return 0;
+	// TODO
+	(void)arg;
+	return 0;
 }
 
 
 int set_callbacks(void *arg, const struct receiver_code *receiver, void *receiver_arg, const struct transmitter_code *transmitter, void *transmitter_arg)
 {
-    struct soapysdr_io *self = arg;
-    self->receiver = receiver;
-    self->receiver_arg = receiver_arg;
-    self->transmitter = transmitter;
-    self->transmitter_arg = transmitter_arg;
-    return 0;
+	struct soapysdr_io *self = arg;
+	self->receiver = receiver;
+	self->receiver_arg = receiver_arg;
+	self->transmitter = transmitter;
+	self->transmitter_arg = transmitter_arg;
+	return 0;
 }
 
 
 const struct soapysdr_io_conf soapysdr_io_defaults = {
-    .samplerate = 1e6,
-    .rx_centerfreq = 433.8e6,
-    .tx_centerfreq = 433.8e6,
-    .rx_gain = 60,
-    .tx_gain = 80,
-    .rx_channel = 0,
-    .tx_channel = 0,
-    .tx_on = 0,
-    .rx_tx_latency = 50000000,
-    // Default antennas for testing with LimeSDR
-    .rx_antenna = "LNAL",
-    .tx_antenna = "TX/RX"
+	.samplerate = 1e6,
+	.rx_centerfreq = 433.8e6,
+	.tx_centerfreq = 433.8e6,
+	.rx_gain = 60,
+	.tx_gain = 80,
+	.rx_channel = 0,
+	.tx_channel = 0,
+	.tx_on = 1,
+	.rx_tx_latency = 50000000,
+	// Default antennas for testing with LimeSDR
+	.rx_antenna = "LNAL",
+	.tx_antenna = "BAND1"
 };
 
 CONFIG_BEGIN(soapysdr_io)

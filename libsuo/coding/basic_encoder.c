@@ -1,4 +1,5 @@
 #include "basic_encoder.h"
+#include "suo_macros.h"
 #include <string.h>
 #include <assert.h>
 #include <liquid/liquid.h>
@@ -109,5 +110,12 @@ static int encode(void *arg, bit_t *bits, size_t max_nbits, const uint8_t *data,
 }
 
 
-const struct encoder_code basic_encoder_code = { init, destroy, encode };
+CONFIG_BEGIN(basic_encoder)
+CONFIG_I(syncword)
+CONFIG_I(synclen)
+CONFIG_I(preamblelen)
+CONFIG_I(lsb_first)
+CONFIG_I(rs)
+CONFIG_END()
 
+const struct encoder_code basic_encoder_code = { init, destroy, init_conf, set_conf, encode };

@@ -1,5 +1,5 @@
-#ifndef EFRK7_DECODER_H
-#define EFRK7_DECODER_H
+#ifndef LIBSUO_EFRK7_DECODER_H
+#define LIBSUO_EFRK7_DECODER_H
 #include "suo.h"
 
 struct efrk7_decoder_conf {
