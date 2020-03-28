@@ -16,6 +16,6 @@ $(BUILD)/%.o: %.c *.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(BUILD)
+	rm -rf $(BUILD)
 
 .PHONY: all clean

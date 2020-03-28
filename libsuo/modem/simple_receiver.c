@@ -136,7 +136,7 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 	bool receiving_frame = self->receiving_frame;
 
 	if(framepos < framelen) {
-		self->framebuf[framepos] = bit;
+		self->framebuf[framepos] = bit ? 0xFF : 0;
 		framepos++;
 		if(framepos == framelen) {
 			self->output.frame(self->output_arg, self->framebuf, framelen, &self->metadata);

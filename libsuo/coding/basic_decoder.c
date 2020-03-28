@@ -42,7 +42,7 @@ static int destroy(void *arg)
 }
 
 
-static int bits_to_bytes(const bit_t *bits, size_t nbits, uint8_t *bytes, size_t max_bytes, bool lsb_first)
+static int bits_to_bytes(const softbit_t *bits, size_t nbits, uint8_t *bytes, size_t max_bytes, bool lsb_first)
 {
 	size_t nbytes = nbits / 8;
 	if(nbytes > max_bytes)
@@ -55,14 +55,14 @@ static int bits_to_bytes(const bit_t *bits, size_t nbits, uint8_t *bytes, size_t
 		if(!lsb_first) {
 			for(j = 0; j < 8; j++) {
 				byte <<= 1;
-				byte |= 1 & *bits;
-				bits++;
+				if (*bits++ >= 0x80)
+					byte |= 1;
 			}
 		} else {
 			for(j = 0; j < 8; j++) {
 				byte >>= 1;
-				byte |= (1 & *bits) << 7;
-				bits++;
+				if (*bits++ >= 0x80)
+					byte |= 0x80;
 			}
 		}
 		bytes[i] = byte;
@@ -71,7 +71,7 @@ static int bits_to_bytes(const bit_t *bits, size_t nbits, uint8_t *bytes, size_t
 }
 
 
-static int decode(void *arg, const bit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len, struct rx_metadata *metadata)
+static int decode(void *arg, const softbit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len, struct rx_metadata *metadata)
 {
 	struct basic_decoder *self = arg;
 	if(self->l_fec != NULL) {

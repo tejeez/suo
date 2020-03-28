@@ -3,7 +3,7 @@
 #include "suo.h"
 
 struct soapysdr_io_conf {
-	float samplerate, rx_centerfreq, tx_centerfreq; /* Hz */
+	double samplerate, rx_centerfreq, tx_centerfreq; /* Hz */
 	float rx_gain, tx_gain; /* dB */
 	size_t rx_channel, tx_channel;
 	bool tx_on;

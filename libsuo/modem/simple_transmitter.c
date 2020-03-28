@@ -70,7 +70,7 @@ static int set_callbacks(void *arg, const struct tx_input_code *input, void *inp
 }
 
 
-static int execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t *timestamp)
+static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t timestamp)
 {
 	struct simple_transmitter *self = arg;
 	size_t nsamples = 0;
@@ -85,7 +85,7 @@ static int execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t 
 
 	if(!transmitting) {
 		int ret;
-		ret = self->input.get_frame(self->input_arg, framebuf, FRAMELEN_MAX, *timestamp, &self->metadata);
+		ret = self->input.get_frame(self->input_arg, framebuf, FRAMELEN_MAX, timestamp, &self->metadata);
 		if(ret > 0) {
 			assert(ret <= FRAMELEN_MAX);
 			transmitting = 1;
@@ -122,7 +122,7 @@ static int execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t 
 	self->framelen = framelen;
 	self->framepos = framepos;
 	self->symphase = symphase;
-	return nsamples;
+	return (tx_return_t){ .begin=0, .end = nsamples };
 }
 
 

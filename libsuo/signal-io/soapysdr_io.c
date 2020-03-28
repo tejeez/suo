@@ -51,6 +51,8 @@ int execute(void *arg)
 
 	struct soapysdr_io_conf *const radioconf = &self->conf;
 
+	double sample_ns = 1.0e9 / radioconf->samplerate;
+
 	/*--------------------------------
 	 ---- Hardware initialization ----
 	 ---------------------------------*/
@@ -168,7 +170,6 @@ int execute(void *arg)
 		sample_t rxbuf[BUFLEN];
 		sample_t txbuf[BUFLEN];
 		void *rxbuffs[] = { rxbuf };
-		const void *txbuffs[] = { txbuf };
 		int flags = 0;
 		long long rx_timestamp = 0;
 		int ret = SoapySDRDevice_readStream(sdr, rxstream,
@@ -185,23 +186,25 @@ int execute(void *arg)
 			 * might change. Not sure if this is the best way.
 			 * Maybe the modem should tell when a burst ends
 			 * in an additional field in the metadata struct? */
-			int ntx;
+			tx_return_t ntx = { 0, 0 };
 			timestamp_t tx_timestamp = rx_timestamp + radioconf->rx_tx_latency;
-			ntx = self->transmitter->execute(self->transmitter_arg, txbuf, BUFLEN, &tx_timestamp);
-			if(ntx > 0) {
+			ntx = self->transmitter->execute(self->transmitter_arg, txbuf, BUFLEN, tx_timestamp);
+			if(ntx.end > ntx.begin) {
 				flags = SOAPY_SDR_HAS_TIME;
-				/* If there were less than the maximum number of samples,
-				 * assume a burst has ended */
-				if(ntx < BUFLEN) {
+				// If ntx.end does not point to end of the buffer, a burst has ended
+				if(ntx.end < BUFLEN) {
 					flags |= SOAPY_SDR_END_BURST;
 					tx_burst_going = 0;
 				} else {
 					tx_burst_going = 1;
 				}
 
+				const void *txbuffs[] = { txbuf + ntx.begin };
+
 				ret = SoapySDRDevice_writeStream(sdr, txstream,
-					txbuffs, ntx, &flags,
-					tx_timestamp, 100000);
+					txbuffs, ntx.end - ntx.begin, &flags,
+					tx_timestamp + (timestamp_t)(sample_ns*ntx.begin),
+					100000);
 				if(ret <= 0)
 					soapy_fail("SoapySDRDevice_writeStream", ret);
 			} else {
@@ -212,6 +215,7 @@ int execute(void *arg)
 				 * zero samples gave a timeout error. */
 				if(tx_burst_going) {
 					txbuf[0] = 0;
+					const void *txbuffs[] = { txbuf };
 					flags = SOAPY_SDR_HAS_TIME | SOAPY_SDR_END_BURST;
 					ret = SoapySDRDevice_writeStream(sdr, txstream,
 						txbuffs, 1, &flags,
