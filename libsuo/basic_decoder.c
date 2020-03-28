@@ -1,4 +1,5 @@
 #include "basic_decoder.h"
+#include "suo_macros.h"
 #include <string.h>
 #include <assert.h>
 #include <liquid/liquid.h>
@@ -112,5 +113,11 @@ static int decode(void *arg, const bit_t *bits, size_t nbits, uint8_t *decoded, 
 }
 
 
-const struct decoder_code basic_decoder_code = { init, destroy, decode };
+CONFIG_BEGIN(basic_decoder)
+CONFIG_I(lsb_first)
+CONFIG_I(rs)
+CONFIG_END()
+
+
+const struct decoder_code basic_decoder_code = { init, destroy, init_conf, set_conf, decode };
 

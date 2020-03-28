@@ -1,4 +1,5 @@
 #include "simple_receiver.h"
+#include "suo_macros.h"
 #include <string.h>
 #include <assert.h>
 #include <stdio.h> // for debug prints only
@@ -321,4 +322,22 @@ static int simple_receiver_set_callbacks(void *arg, const struct rx_output_code 
 }
 
 
-const struct receiver_code simple_receiver_code = { simple_receiver_init, simple_receiver_destroy, simple_receiver_set_callbacks, simple_receiver_execute };
+const struct simple_receiver_conf simple_receiver_defaults = {
+	.samplerate = 1e6,
+	.symbolrate = 9600,
+	.centerfreq = 0,
+	.syncword = 0,
+	.synclen = 32,
+	.framelen = 800
+};
+
+
+CONFIG_BEGIN(simple_receiver)
+CONFIG_F(samplerate)
+CONFIG_F(symbolrate)
+CONFIG_F(centerfreq)
+CONFIG_I(syncword)
+CONFIG_END()
+
+
+const struct receiver_code simple_receiver_code = { simple_receiver_init, simple_receiver_destroy, init_conf, set_conf, simple_receiver_set_callbacks, simple_receiver_execute };

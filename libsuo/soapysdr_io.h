@@ -1,9 +1,8 @@
-#ifndef CONFIGURATION_H
-#define CONFIGURATION_H
+#ifndef SOAPYSDR_IO_H
+#define SOAPYSDR_IO_H
+#include "suo.h"
 
-#include "libsuo/suo.h"
-
-struct radio_conf {
+struct soapysdr_io_conf {
 	float samplerate, rx_centerfreq, tx_centerfreq; /* Hz */
 	float rx_gain, tx_gain; /* dB */
 	size_t rx_channel, tx_channel;
@@ -12,9 +11,8 @@ struct radio_conf {
 	const char *rx_antenna, *tx_antenna;
 };
 
+extern const struct soapysdr_io_conf soapysdr_io_defaults;
 
-
-int configure(struct suo *, int argc, char *argv[]);
-int deinitialize(struct suo *);
+extern const struct signal_io_code soapysdr_io_code;
 
 #endif

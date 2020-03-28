@@ -3,111 +3,91 @@
 #include "libsuo/simple_transmitter.h"
 #include "libsuo/basic_decoder.h"
 #include "libsuo/basic_encoder.h"
+#include "libsuo/soapysdr_io.h"
 #include "zmq_interface.h"
 #include "test_interface.h"
 #include <string.h>
 #include <stdio.h>
 
-#define PARAMETERF(name) if(strcmp(argv[i], #name) == 0) { p_##name = atof(argv[i+1]); i++; continue; }
 
-#define PARAMETERI(name) if(strcmp(argv[i], #name) == 0) { p_##name = atoi(argv[i+1]); i++; continue; }
+void *read_conf_and_init(const struct any_code *code, FILE *f)
+{
+	void *conf = code->init_conf();
 
-#define PARAMETERC(name) if(strcmp(argv[i], #name) == 0) { p_##name = argv[i+1]; i++; continue; }
+	/* Parsing strings is C is not nice :( */
+	char line[80], param[80], value[80];
+	while (f != NULL && fgets(line, sizeof(line), f) != NULL) {
+		// Skip comments
+		if (line[0] == '#')
+			continue;
+
+		// - marks end of the configuration section, so stop there
+		if (line[0] == '-')
+			break;
+
+		// Find the end of the line
+		char *p_end = strchr(line, '\r');
+		if (p_end == NULL)
+			p_end = strchr(line, '\n');
+		if (p_end == NULL)
+			p_end = line + strlen(line);
+
+		// Skip empty lines
+		if (p_end == line)
+			continue;
+
+		// Find the delimiter. Stop reading if missing.
+		char *p_del = strchr(line, ' ');
+		if (p_del == NULL)
+			continue;
+
+		strncpy(param, line, p_del - line);
+		param[p_del - line] = '\0';
+		strncpy(value, p_del + 1, p_end - (p_del + 1));
+		value[p_end - (p_del + 1)] = '\0';
+
+		if (code->set_conf(conf, param, value) < 0) {
+			fprintf(stderr, "Invalid configuration %s %s\n", param, value);
+		}
+	}
+	return code->init(conf);
+}
+
+
+int read_configuration(struct suo *suo, FILE *f)
+{
+	// TODO: make the choice of functions configurable
+	suo->receiver        = &simple_receiver_code;
+	suo->receiver_arg    = read_conf_and_init((const struct any_code*)suo->receiver, f);
+	suo->decoder         = &basic_decoder_code;
+	suo->decoder_arg     = read_conf_and_init((const struct any_code*)suo->decoder, f);
+#if 0
+	suo->transmitter     = &simple_transmitter_code;
+	suo->transmitter_arg = read_conf_and_init((const struct any_code*)suo->transmitter, f);
+	suo->encoder         = &basic_encoder_code;
+	suo->encoder_arg     = read_conf_and_init((const struct any_code*)suo->encoder, f);
+#endif
+	suo->signal_io       = &soapysdr_io_code;
+	suo->signal_io_arg   = read_conf_and_init((const struct any_code*)suo->signal_io, f);
+	return 0;
+}
+
 
 int configure(struct suo *suo, int argc, char *argv[])
 {
-	float p_samplerate = 1e6;
-	float p_rxcenter = 433.8e6, p_txcenter = 433.8e6;
-	float p_rxfreq = 433.92e6, p_txfreq = 433.92e6;
-	float p_symbolrate = 9600;
-	uint32_t p_syncword = 0x1ACFFC1D;
-	unsigned p_bytes = 30;
-	bool p_rs = 0, p_tx = 0, p_zmq = 0;
-	const char *p_rxant = NULL, *p_txant = NULL;
-
-	int i;
-	for(i=1; i<argc-1; i++) {
-		PARAMETERF(samplerate)
-		PARAMETERF(rxcenter)
-		PARAMETERF(txcenter)
-		PARAMETERF(rxfreq)
-		PARAMETERF(txfreq);
-		PARAMETERF(symbolrate)
-		PARAMETERI(syncword)  // atoi doesn't understand hex though :(
-		PARAMETERI(bytes)
-		PARAMETERI(rs)
-		PARAMETERI(tx)
-		PARAMETERI(zmq)
-		PARAMETERC(rxant)
-		PARAMETERC(txant)
-		/* Skip SoapySDR parameters (parsed in main) */
-		if(strncmp(argv[i], "soapy-", 6) == 0) {
-			i++;
-			continue;
-		}
-		fprintf(stderr, "Unknown parameter %s\n", argv[i]);
-	}
+	bool p_tx = 0, p_zmq = 0;
 
 	memset(suo, 0, sizeof(*suo));
 
-	suo->radio_conf = (struct radio_conf) {
-		.samplerate = p_samplerate,
-		.rx_centerfreq = p_rxcenter,
-		.tx_centerfreq = p_txcenter,
-		.rx_gain = 60,
-		.tx_gain = 80,
-		.rx_channel = 0,
-		.tx_channel = 0,
-		.tx_on = p_tx,
-		.rx_tx_latency = 50000000,
-		.rx_antenna = p_rxant,
-		.tx_antenna = p_txant
-	};
+	FILE *f = NULL;
+	if (argc >= 2)
+		f = fopen(argv[1], "r");
+	read_configuration(suo, f);
+	if (f != NULL)
+		fclose(f);
 
-	int receiver_type = 0, transmitter_type = 0,
-		decoder_type = 0, encoder_type = 0,
+	int
 		output_type = p_zmq ? 1 : 0, input_type = p_zmq ? 1 : 0;
-
-	if(receiver_type == 0) {
-		suo->receiver = &simple_receiver_code;
-		struct simple_receiver_conf c = {
-			.samplerate = p_samplerate, .symbolrate = p_symbolrate,
-			.centerfreq = p_rxfreq - p_rxcenter,
-			.syncword = p_syncword, .synclen = 32,
-			.framelen = p_bytes*8
-		};
-		if (p_rs)
-			c.framelen += 32*8;
-		suo->receiver_arg = suo->receiver->init(&c);
-	}
-
-	if(p_tx && transmitter_type == 0) {
-		suo->transmitter = &simple_transmitter_code;
-		struct simple_transmitter_conf c = {
-			.samplerate = p_samplerate, .symbolrate = p_symbolrate,
-			.centerfreq = p_txfreq - p_txcenter,
-			.modindex = 0.5
-		};
-		suo->transmitter_arg = suo->transmitter->init(&c);
-	}
-
-	if(decoder_type == 0) {
-		suo->decoder = &basic_decoder_code;
-		struct basic_decoder_conf c = {
-			.lsb_first = 0,
-			.rs = p_rs
-		};
-		suo->decoder_arg = suo->decoder->init(&c);
-	}
-
-	if(p_tx && encoder_type == 0) {
-		suo->encoder = &basic_encoder_code;
-		struct basic_encoder_conf c = basic_encoder_defaults;
-		c.syncword = p_syncword;
-		c.synclen = 32;
-		c.rs = p_rs;
-		suo->encoder_arg = suo->encoder->init(&c);
-	}
 
 	if(output_type == 0) {
 		suo->rx_output = &test_rx_output_code;
@@ -141,6 +121,8 @@ int configure(struct suo *suo, int argc, char *argv[])
 		suo->tx_input   ->set_callbacks(suo->tx_input_arg, suo->encoder, suo->encoder_arg);
 		suo->transmitter->set_callbacks(suo->transmitter_arg, suo->tx_input, suo->tx_input_arg);
 	}
+
+	suo->signal_io->set_callbacks(suo->signal_io_arg, suo->receiver, suo->receiver_arg, suo->transmitter, suo->transmitter_arg);
 
 	return 0;
 }
