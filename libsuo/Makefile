@@ -3,10 +3,10 @@ CFLAGS=-Wall -Wextra -Wdouble-promotion -std=gnu11 -O3 -g
 CFLAGS += -I.
 
 BUILD=build
-DSP_SRCS = $(wildcard modem/*.c coding/*.c)
+DSP_SRCS = dsp_modules.c $(wildcard modem/*.c coding/*.c)
 DSP_OBJS = $(addprefix $(BUILD)/,$(DSP_SRCS:.c=.o))
 
-IO_SRCS = $(wildcard frame-io/*.c signal-io/*.c)
+IO_SRCS = io_modules.c $(wildcard frame-io/*.c signal-io/*.c)
 IO_OBJS = $(addprefix $(BUILD)/,$(IO_SRCS:.c=.o))
 
 DEPS=Makefile $(wildcard *.h */*.h)

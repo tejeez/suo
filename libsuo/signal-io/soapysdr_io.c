@@ -29,9 +29,9 @@ static void soapy_fail(const char *function, int ret)
 
 
 
-volatile int running = 1;
+static volatile int running = 1;
 
-void sighandler(int sig)
+static void sighandler(int sig)
 {
 	(void)sig;
 	running = 0;
@@ -43,7 +43,7 @@ typedef unsigned char sample1_t[2];
 // TODO make BUFLEN configurable
 #define BUFLEN 2048
 
-int execute(void *arg)
+static int execute(void *arg)
 {
 	struct soapysdr_io *self = arg;
 	SoapySDRDevice *sdr = NULL;
@@ -66,21 +66,8 @@ int execute(void *arg)
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigact, NULL);
 
-	SoapySDRKwargs args = {};
-#if 0
-	/* Pass command line parameters prefixed with soapy- */
-	int i;
-	for(i=1; i<argc-1; i++) {
-		if(strncmp(argv[i], "soapy-", 6) == 0) {
-			SoapySDRKwargs_set(&args, argv[i]+6, argv[i+1]);
-		}
-	}
-#else
-	// TODO: configuration for these
-	SoapySDRKwargs_set(&args, "driver", "lime");
-#endif
-	sdr = SoapySDRDevice_make(&args);
-	SoapySDRKwargs_clear(&args);
+	sdr = SoapySDRDevice_make(&self->conf.args);
+	SoapySDRKwargs_clear(&self->conf.args);
 	if(sdr == NULL) {
 		soapy_fail("SoapySDRDevice_make", 0);
 		goto exit_soapy;
@@ -248,7 +235,7 @@ exit_soapy:
 }
 
 
-void *init(const void *conf)
+static void *init(const void *conf)
 {
 	struct soapysdr_io *self;
 	self = malloc(sizeof(*self));
@@ -259,7 +246,7 @@ void *init(const void *conf)
 }
 
 
-int destroy(void *arg)
+static int destroy(void *arg)
 {
 	// TODO
 	(void)arg;
@@ -267,7 +254,7 @@ int destroy(void *arg)
 }
 
 
-int set_callbacks(void *arg, const struct receiver_code *receiver, void *receiver_arg, const struct transmitter_code *transmitter, void *transmitter_arg)
+static int set_callbacks(void *arg, const struct receiver_code *receiver, void *receiver_arg, const struct transmitter_code *transmitter, void *transmitter_arg)
 {
 	struct soapysdr_io *self = arg;
 	self->receiver = receiver;
@@ -288,9 +275,8 @@ const struct soapysdr_io_conf soapysdr_io_defaults = {
 	.tx_channel = 0,
 	.tx_on = 1,
 	.rx_tx_latency = 50000000,
-	// Default antennas for testing with LimeSDR
-	.rx_antenna = "LNAL",
-	.tx_antenna = "BAND1"
+	.rx_antenna = NULL,
+	.tx_antenna = NULL
 };
 
 CONFIG_BEGIN(soapysdr_io)
@@ -305,7 +291,11 @@ CONFIG_I(tx_on)
 CONFIG_F(rx_tx_latency)
 CONFIG_C(rx_antenna)
 CONFIG_C(tx_antenna)
+	if (strncmp(parameter, "soapy-", 6) == 0) {
+		SoapySDRKwargs_set(&c->args, parameter+6, value);
+		return 0;
+	}
 CONFIG_END()
 
 
-const struct signal_io_code soapysdr_io_code = { init, destroy, init_conf, set_conf, set_callbacks, execute };
+const struct signal_io_code soapysdr_io_code = { "soapysdr_io", init, destroy, init_conf, set_conf, set_callbacks, execute };

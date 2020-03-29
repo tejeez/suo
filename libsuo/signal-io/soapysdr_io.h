@@ -2,6 +2,8 @@
 #define LIBSUO_SOAPYSDR_IO_H
 #include "suo.h"
 
+#include <SoapySDR/Device.h>
+
 struct soapysdr_io_conf {
 	double samplerate, rx_centerfreq, tx_centerfreq; /* Hz */
 	float rx_gain, tx_gain; /* dB */
@@ -9,6 +11,7 @@ struct soapysdr_io_conf {
 	bool tx_on;
 	long long rx_tx_latency; /* ns */
 	const char *rx_antenna, *tx_antenna;
+	SoapySDRKwargs args;
 };
 
 extern const struct soapysdr_io_conf soapysdr_io_defaults;

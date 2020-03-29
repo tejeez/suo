@@ -1,7 +1,7 @@
 # Some examples on using the modem application
 
-Start `../suoapp/build/suo`
-and `./zmq_example.py`
-and try chatting between two computers using the default settings.
+Example for LimeSDR:
 
-Example configuration files TODO.
+Start `../suoapp/build/suo example-config.txt`
+and `./zmq_example.py`
+and try chatting between two computers.

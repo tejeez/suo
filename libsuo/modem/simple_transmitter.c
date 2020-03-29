@@ -140,5 +140,4 @@ CONFIG_F(centerfreq)
 CONFIG_F(modindex)
 CONFIG_END()
 
-const struct transmitter_code simple_transmitter_code = { init, destroy, init_conf, set_conf, set_callbacks, execute };
-
+const struct transmitter_code simple_transmitter_code = { "simple_transmitter", init, destroy, init_conf, set_conf, set_callbacks, execute };

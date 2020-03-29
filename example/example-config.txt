@@ -1,0 +1,22 @@
+simple_receiver
+# Set the symbol rate as 10000, but keep other values as default
+symbolrate 10000
+-
+basic_decoder
+-
+zmq_output
+# Use ZeroMQ with default settings to output frames
+-
+simple_transmitter
+symbolrate 10000
+-
+basic_encoder
+-
+zmq_input
+-
+soapysdr_io
+# Settings for LimeSDR
+soapy-driver lime
+rx_antenna LNAL
+tx_antenna BAND1
+-

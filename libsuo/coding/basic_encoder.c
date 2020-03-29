@@ -118,4 +118,4 @@ CONFIG_I(lsb_first)
 CONFIG_I(rs)
 CONFIG_END()
 
-const struct encoder_code basic_encoder_code = { init, destroy, init_conf, set_conf, encode };
+const struct encoder_code basic_encoder_code = { "basic_encoder", init, destroy, init_conf, set_conf, encode };

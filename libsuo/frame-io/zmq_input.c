@@ -170,4 +170,4 @@ CONFIG_BEGIN(zmq_tx_input)
 CONFIG_C(address)
 CONFIG_END()
 
-const struct tx_input_code zmq_tx_input_code = { zmq_input_init, zmq_input_destroy, init_conf, set_conf, zmq_input_set_callbacks, zmq_input_get_frame };
+const struct tx_input_code zmq_tx_input_code = { "zmq_input", zmq_input_init, zmq_input_destroy, init_conf, set_conf, zmq_input_set_callbacks, zmq_input_get_frame };

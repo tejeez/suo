@@ -31,6 +31,9 @@ typedef uint64_t timestamp_t;
  * Maybe there would be a cleaner way to do this, such as having this
  * as a member of every struct. Let's think about that later. */
 struct any_code {
+	// Name of the module
+	const char *name;
+
 	// Initialize an instance based on a configuration struct
 	void *(*init)      (const void *conf);
 
@@ -73,6 +76,7 @@ struct rx_metadata {
 
 /* Interface to a frame decoder module */
 struct decoder_code {
+	const char *name;
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
@@ -89,6 +93,7 @@ struct decoder_code {
 /* Interface to a receiver output module.
  * A receiver calls one when it has received a frame. */
 struct rx_output_code {
+	const char *name;
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
@@ -107,6 +112,7 @@ struct rx_output_code {
  * When a frame is received, a receiver calls a given rx_output.
  */
 struct receiver_code {
+	const char *name;
 	void *(*init)          (const void *conf);
 	int   (*destroy)       (void *);
 	void *(*init_conf)     (void);
@@ -144,6 +150,7 @@ struct tx_metadata {
 
 /* Interface to a frame encoder module */
 struct encoder_code {
+	const char *name;
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
@@ -160,6 +167,7 @@ struct encoder_code {
 /* Interface to a transmitter input module.
  * A transmitter calls one to request a frame to be transmitted. */
 struct tx_input_code {
+	const char *name;
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
@@ -186,6 +194,7 @@ typedef struct {
 
 /* Interface to a transmitter module. */
 struct transmitter_code {
+	const char *name;
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
@@ -209,6 +218,7 @@ struct transmitter_code {
  * Signal to be transmitted is asked from a given transmitter.
  */
 struct signal_io_code {
+	const char *name;
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
@@ -245,5 +255,20 @@ struct suo {
 	const struct signal_io_code *signal_io;
 	void *signal_io_arg;
 };
+
+// List of all receivers
+extern const struct receiver_code *suo_receivers[];
+// List of all transmitters
+extern const struct transmitter_code *suo_transmitters[];
+// List of all decoders
+extern const struct decoder_code *suo_decoders[];
+// List of all encoders
+extern const struct encoder_code *suo_encoders[];
+// List of all RX outputs
+extern const struct rx_output_code *suo_rx_outputs[];
+// List of all TX inputs
+extern const struct tx_input_code *suo_tx_inputs[];
+// List of all signal I/Os
+extern const struct signal_io_code *suo_signal_ios[];
 
 #endif

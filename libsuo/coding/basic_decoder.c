@@ -119,5 +119,4 @@ CONFIG_I(rs)
 CONFIG_END()
 
 
-const struct decoder_code basic_decoder_code = { init, destroy, init_conf, set_conf, decode };
-
+const struct decoder_code basic_decoder_code = { "basic_decoder", init, destroy, init_conf, set_conf, decode };

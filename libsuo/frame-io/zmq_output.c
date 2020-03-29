@@ -184,4 +184,4 @@ CONFIG_BEGIN(zmq_rx_output)
 CONFIG_C(address)
 CONFIG_END()
 
-const struct rx_output_code zmq_rx_output_code = { zmq_output_init, zmq_output_destroy, init_conf, set_conf, zmq_output_set_callbacks, zmq_output_frame };
+const struct rx_output_code zmq_rx_output_code = { "zmq_output", zmq_output_init, zmq_output_destroy, init_conf, set_conf, zmq_output_set_callbacks, zmq_output_frame };

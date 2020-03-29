@@ -340,4 +340,4 @@ CONFIG_I(syncword)
 CONFIG_END()
 
 
-const struct receiver_code simple_receiver_code = { simple_receiver_init, simple_receiver_destroy, init_conf, set_conf, simple_receiver_set_callbacks, simple_receiver_execute };
+const struct receiver_code simple_receiver_code = { "simple_receiver", simple_receiver_init, simple_receiver_destroy, init_conf, set_conf, simple_receiver_set_callbacks, simple_receiver_execute };

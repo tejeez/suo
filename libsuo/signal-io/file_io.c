@@ -18,7 +18,7 @@ struct file_io {
 };
 
 
-void *init(const void *conf)
+static void *init(const void *conf)
 {
 	struct file_io *self;
 	self = calloc(1, sizeof(*self));
@@ -40,7 +40,7 @@ void *init(const void *conf)
 }
 
 
-int destroy(void *arg)
+static int destroy(void *arg)
 {
 	struct file_io *self = arg;
 	if (self->in)
@@ -51,7 +51,7 @@ int destroy(void *arg)
 }
 
 
-int set_callbacks(void *arg, const struct receiver_code *receiver, void *receiver_arg, const struct transmitter_code *transmitter, void *transmitter_arg)
+static int set_callbacks(void *arg, const struct receiver_code *receiver, void *receiver_arg, const struct transmitter_code *transmitter, void *transmitter_arg)
 {
 	struct file_io *self = arg;
 	self->receiver = receiver;
@@ -64,7 +64,7 @@ int set_callbacks(void *arg, const struct receiver_code *receiver, void *receive
 // TODO configuration for BUFLEN
 #define BUFLEN 4096
 
-int execute(void *arg)
+static int execute(void *arg)
 {
 	struct file_io *self = arg;
 	enum inputformat inputformat = FORMAT_CF32;
@@ -112,4 +112,4 @@ CONFIG_C(output)
 CONFIG_END()
 
 
-const struct signal_io_code file_io_code = { init, destroy, init_conf, set_conf, set_callbacks, execute };
+const struct signal_io_code file_io_code = { "file_io", init, destroy, init_conf, set_conf, set_callbacks, execute };

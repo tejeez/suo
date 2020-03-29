@@ -15,6 +15,7 @@
  * If f == NULL, initialize with the default configuration. */
 void *read_conf_and_init(const struct any_code *code, FILE *f)
 {
+	fprintf(stderr, "Configuring %s\n", code->name);
 	void *conf = code->init_conf();
 
 	/* Parsing strings is C is not nice :( */
@@ -57,24 +58,41 @@ void *read_conf_and_init(const struct any_code *code, FILE *f)
 }
 
 
+/* Read a line from the file and choose the module with that name.
+ * If a module with given name is not found,
+ * pick the first one from the list. */
+const void *select_code(const struct any_code **list, FILE *f)
+{
+	int i = 0;
+	char line[80];
+	if (f == NULL || fgets(line, sizeof(line), f) == NULL)
+		return list[0];
+	while (list[i] != NULL) {
+		if (strncmp(list[i]->name, line, strlen(list[i]->name)) == 0)
+			return list[i];
+		i++;
+	}
+	return list[0];
+}
+
+
 int read_configuration(struct suo *suo, FILE *f)
 {
-	// TODO: make the choice of functions configurable
-	suo->receiver        = &simple_receiver_code;
+	suo->receiver        = select_code((const struct any_code**)suo_receivers, f);
 	suo->receiver_arg    = read_conf_and_init((const struct any_code*)suo->receiver, f);
-	suo->decoder         = &basic_decoder_code;
+	suo->decoder         = select_code((const struct any_code**)suo_decoders, f);
 	suo->decoder_arg     = read_conf_and_init((const struct any_code*)suo->decoder, f);
-	suo->rx_output       = &zmq_rx_output_code;
+	suo->rx_output       = select_code((const struct any_code**)suo_rx_outputs, f);
 	suo->rx_output_arg   = read_conf_and_init((const struct any_code*)suo->rx_output, f);
 
-	suo->transmitter     = &simple_transmitter_code;
+	suo->transmitter     = select_code((const struct any_code**)suo_transmitters, f);
 	suo->transmitter_arg = read_conf_and_init((const struct any_code*)suo->transmitter, f);
-	suo->encoder         = &basic_encoder_code;
+	suo->encoder         = select_code((const struct any_code**)suo_encoders, f);
 	suo->encoder_arg     = read_conf_and_init((const struct any_code*)suo->encoder, f);
-	suo->tx_input        = &zmq_tx_input_code;
+	suo->tx_input        = select_code((const struct any_code**)suo_tx_inputs, f);
 	suo->tx_input_arg    = read_conf_and_init((const struct any_code*)suo->tx_input, f);
 
-	suo->signal_io       = &soapysdr_io_code;
+	suo->signal_io       = select_code((const struct any_code**)suo_signal_ios, f);
 	suo->signal_io_arg   = read_conf_and_init((const struct any_code*)suo->signal_io, f);
 	return 0;
 }
