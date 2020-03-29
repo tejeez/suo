@@ -1,11 +1,4 @@
 #include "configure.h"
-#include "modem/simple_receiver.h"
-#include "modem/simple_transmitter.h"
-#include "coding/basic_decoder.h"
-#include "coding/basic_encoder.h"
-#include "signal-io/soapysdr_io.h"
-#include "frame-io/zmq_interface.h"
-#include "frame-io/test_interface.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -54,6 +47,7 @@ void *read_conf_and_init(const struct any_code *code, FILE *f)
 			fprintf(stderr, "Invalid configuration %s %s\n", param, value);
 		}
 	}
+	fprintf(stderr, "Initializing %s\n", code->name);
 	return code->init(conf);
 }
 
@@ -108,6 +102,8 @@ int configure(struct suo *suo, int argc, char *argv[])
 	read_configuration(suo, f);
 	if (f != NULL)
 		fclose(f);
+
+	fprintf(stderr, "Setting callbacks\n");
 
 	if (suo->receiver != NULL) {
 		suo->rx_output  ->set_callbacks(suo->rx_output_arg, suo->decoder, suo->decoder_arg);

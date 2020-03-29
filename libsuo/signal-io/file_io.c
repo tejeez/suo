@@ -30,6 +30,8 @@ static void *init(const void *conf)
 		self->in = fopen(self->conf.input, "rb");
 	else
 		self->in = stdin;
+	if (self->in == NULL)
+		perror("Failed to open signal input");
 
 	if (self->conf.output != NULL)
 		self->out = fopen(self->conf.output, "wb");
@@ -67,28 +69,30 @@ static int set_callbacks(void *arg, const struct receiver_code *receiver, void *
 static int execute(void *arg)
 {
 	struct file_io *self = arg;
-	enum inputformat inputformat = FORMAT_CF32;
+	enum inputformat inputformat = self->conf.format;
 	timestamp_t timestamp = 0;
 	sample_t buf2[BUFLEN];
 
+	if (self->in == NULL)
+		return -1;
 	for(;;) {
 		size_t n, i;
 		if(inputformat == FORMAT_CU8) {
 			cu8_t buf1[BUFLEN];
-			n = fread(buf1, sizeof(cu8_t), BUFLEN, stdin);
+			n = fread(buf1, sizeof(cu8_t), BUFLEN, self->in);
 			if(n == 0) break;
 			for(i=0; i<n; i++)
 				buf2[i] = (float)buf1[i][0] - 127.4f
 					+((float)buf1[i][1] - 127.4f)*I;
 		} else if(inputformat == FORMAT_CS16) {
 			cs16_t buf1[BUFLEN];
-			n = fread(buf1, sizeof(cs16_t), BUFLEN, stdin);
+			n = fread(buf1, sizeof(cs16_t), BUFLEN, self->in);
 			if(n == 0) break;
 			for(i=0; i<n; i++)
 				buf2[i] = (float)buf1[i][0]
 					+((float)buf1[i][1])*I;
 		} else {
-			n = fread(buf2, sizeof(sample_t), BUFLEN, stdin);
+			n = fread(buf2, sizeof(sample_t), BUFLEN, self->in);
 			if(n == 0) break;
 		}
 		self->receiver->execute(self->receiver_arg, buf2, n, timestamp);
@@ -102,13 +106,15 @@ static int execute(void *arg)
 const struct file_io_conf file_io_defaults = {
 	.samplerate = 1e6,
 	.input = NULL,
-	.output = NULL
+	.output = NULL,
+	.format = 1
 };
 
 CONFIG_BEGIN(file_io)
 CONFIG_F(samplerate)
 CONFIG_C(input)
 CONFIG_C(output)
+CONFIG_I(format)
 CONFIG_END()
 
 

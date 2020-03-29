@@ -271,4 +271,11 @@ extern const struct tx_input_code *suo_tx_inputs[];
 // List of all signal I/Os
 extern const struct signal_io_code *suo_signal_ios[];
 
+
+/* Write samples somewhere for testing purposes.
+ * Something like this could be useful for showing diagnostics
+ * such as constellations in end applications as well,
+ * so some more general way would be nice. */
+void print_samples(unsigned stream, sample_t *samples, size_t len);
+
 #endif

@@ -9,6 +9,8 @@ struct file_io_conf {
 	const char *input;
 	// File name for output file containing transmitted signal
 	const char *output;
+	// Data format
+	unsigned format;
 };
 
 extern const struct file_io_conf file_io_defaults;
