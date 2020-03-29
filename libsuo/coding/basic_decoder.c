@@ -13,7 +13,8 @@ struct basic_decoder {
 
 const struct basic_decoder_conf basic_decoder_defaults = {
 	.lsb_first = 0,
-	.rs = 0
+	.bypass = 0,
+	.rs = 0,
 };
 
 
@@ -74,7 +75,11 @@ static int bits_to_bytes(const softbit_t *bits, size_t nbits, uint8_t *bytes, si
 static int decode(void *arg, const softbit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len, struct rx_metadata *metadata)
 {
 	struct basic_decoder *self = arg;
-	if(self->l_fec != NULL) {
+	if (self->conf.bypass) {
+		size_t len = nbits < max_decoded_len ? nbits : max_decoded_len;
+		memcpy(decoded, bits, len);
+		return len;
+	} else if(self->l_fec != NULL) {
 		/* Reed-Solomon decode */
 		int n, ndec;
 		n = bits_to_bytes(bits, nbits, self->buf, 255, self->conf.lsb_first);
@@ -115,6 +120,7 @@ static int decode(void *arg, const softbit_t *bits, size_t nbits, uint8_t *decod
 
 CONFIG_BEGIN(basic_decoder)
 CONFIG_I(lsb_first)
+CONFIG_I(bypass)
 CONFIG_I(rs)
 CONFIG_END()
 

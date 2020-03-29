@@ -4,8 +4,9 @@
 
 struct burst_dpsk_receiver_conf {
 	float samplerate, symbolrate, centerfreq;
-	uint64_t syncword;
-	unsigned synclen, framelen;
+	uint64_t syncword1, syncword2, syncword3;
+	unsigned synclen, synclen3;
+	unsigned framelen;
 };
 
 extern const struct burst_dpsk_receiver_conf burst_dpsk_receiver_defaults;
