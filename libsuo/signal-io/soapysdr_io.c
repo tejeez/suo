@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <signal.h>
+#include <assert.h>
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
 
@@ -40,9 +41,6 @@ static void sighandler(int sig)
 
 typedef unsigned char sample1_t[2];
 
-// TODO make BUFLEN configurable
-#define BUFLEN 2048
-
 static int execute(void *arg)
 {
 	struct soapysdr_io *self = arg;
@@ -51,7 +49,15 @@ static int execute(void *arg)
 
 	struct soapysdr_io_conf *const radioconf = &self->conf;
 
-	double sample_ns = 1.0e9 / radioconf->samplerate;
+	const double sample_ns = 1.0e9 / radioconf->samplerate;
+	const long long tx_latency_time = sample_ns * radioconf->tx_latency;
+	const size_t rx_buflen = radioconf->buffer;
+	// Reserve a bit more space in TX buffer to allow for timing variations
+	const size_t tx_buflen = rx_buflen * 3 / 2;
+	// Timeout a few times the buffer length
+	const long timeout_us = sample_ns * 0.001 * 10.0 * rx_buflen;
+	// Used for lost sample detection
+	const long long timediff_max = sample_ns * 0.5;
 
 	/*--------------------------------
 	 ---- Hardware initialization ----
@@ -93,7 +99,7 @@ static int execute(void *arg)
 		sdr, SOAPY_SDR_RX, radioconf->rx_channel,
 		radioconf->rx_gain);
 
-	if(radioconf->tx_on) {
+	if (radioconf->flags & SOAPYIO_TX_ON) {
 		fprintf(stderr, "Configuring TX\n");
 		SOAPYCHECK(SoapySDRDevice_setFrequency,
 			sdr, SOAPY_SDR_TX, radioconf->tx_channel,
@@ -118,7 +124,7 @@ static int execute(void *arg)
 		sdr, &rxstream, SOAPY_SDR_RX,
 		SOAPY_SDR_CF32, &radioconf->rx_channel, 1, NULL);
 
-	if(radioconf->tx_on) {
+	if (radioconf->flags & SOAPYIO_TX_ON) {
 		SOAPYCHECK(SoapySDRDevice_setupStream,
 			sdr, &txstream, SOAPY_SDR_TX,
 			SOAPY_SDR_CF32, &radioconf->tx_channel, 1, NULL);
@@ -130,7 +136,7 @@ static int execute(void *arg)
 		soapy_fail("SoapySDRDevice_setupStream", 0);
 		goto exit_soapy;
 	}
-	if(radioconf->tx_on) {
+	if (radioconf->flags & SOAPYIO_TX_ON) {
 		txstream = SoapySDRDevice_setupStream(sdr,
 			SOAPY_SDR_TX, SOAPY_SDR_CF32, &radioconf->tx_channel, 1, NULL);
 		if(txstream == NULL) {
@@ -143,7 +149,7 @@ static int execute(void *arg)
 	fprintf(stderr, "Starting to receive\n");
 	SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
 		rxstream, 0, 0, 0);
-	if(radioconf->tx_on)
+	if (radioconf->flags & SOAPYIO_TX_ON)
 		SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
 			txstream, 0, 0, 0);
 
@@ -153,33 +159,74 @@ static int execute(void *arg)
 	 -----------------------------*/
 
 	bool tx_burst_going = 0;
+
+	long long current_time = SoapySDRDevice_getHardwareTime(sdr, "");
+	/* tx_last_end_time is when the previous produced TX buffer
+	 * ended, i.e. where the next buffer should begin */
+	long long tx_last_end_time = current_time + tx_latency_time;
+
 	while(running) {
-		sample_t rxbuf[BUFLEN];
-		sample_t txbuf[BUFLEN];
+		sample_t rxbuf[rx_buflen];
+		sample_t txbuf[tx_buflen];
 		void *rxbuffs[] = { rxbuf };
 		int flags = 0;
 		long long rx_timestamp = 0;
 		int ret = SoapySDRDevice_readStream(sdr, rxstream,
-			rxbuffs, BUFLEN, &flags, &rx_timestamp, 200000);
-		// TODO: implement metadata and add timestamps there
+			rxbuffs, rx_buflen, &flags, &rx_timestamp, timeout_us);
+
 		if(ret > 0) {
+			/* Estimate current time from the end of the received buffer.
+			 * If there's no timestamp, make one up by incrementing time.
+			 *
+			 * If there were no lost samples, the received buffer should
+			 * begin from the previous "current" time. Calculate the
+			 * difference to detect lost samples.
+			 * TODO: if configured, feed zero padding samples to receiver
+			 * module to correct timing after lost samples. */
+			if (flags & SOAPY_SDR_HAS_TIME) {
+				long long prev_time = current_time;
+				current_time = rx_timestamp + sample_ns * ret;
+
+				long long timediff = rx_timestamp - prev_time;
+				// this can produce a lot of print, not the best way to do it
+				if (timediff < -timediff_max)
+					fprintf(stderr, "%20lld: Time went backwards %lld ns!\n", rx_timestamp, -timediff);
+				else if (timediff > timediff_max)
+					fprintf(stderr, "%20lld: Lost samples for %lld ns!\n", rx_timestamp, timediff);
+			} else {
+				rx_timestamp = current_time; // from previous iteration
+				current_time += sample_ns * ret;
+			}
 			self->receiver->execute(self->receiver_arg, rxbuf, ret, rx_timestamp);
 		} else if(ret <= 0) {
 			soapy_fail("SoapySDRDevice_readStream", ret);
+			long long t = SoapySDRDevice_getHardwareTime(sdr, "");
+			if (t != 0)
+				current_time = t;
 		}
 
-		if(radioconf->tx_on) {
-			/* Handling of TX timestamps and burst start/end
-			 * might change. Not sure if this is the best way.
-			 * Maybe the modem should tell when a burst ends
-			 * in an additional field in the metadata struct? */
-			tx_return_t ntx = { 0, 0 };
-			timestamp_t tx_timestamp = rx_timestamp + radioconf->rx_tx_latency;
-			ntx = self->transmitter->execute(self->transmitter_arg, txbuf, BUFLEN, tx_timestamp);
+		if (radioconf->flags & SOAPYIO_TX_ON) {
+			tx_return_t ntx = { 0, 0, 0 };
+			timestamp_t tx_from_time, tx_until_time;
+			tx_from_time = tx_last_end_time;
+			tx_until_time = current_time + tx_latency_time;
+			int nsamp = round((double)(tx_until_time - tx_from_time) / sample_ns);
+			//fprintf(stderr, "TX nsamp: %d\n", nsamp);
+
+			if (nsamp > 0) {
+				if ((unsigned)nsamp > tx_buflen)
+					nsamp = tx_buflen;
+				ntx = self->transmitter->execute(self->transmitter_arg, txbuf, nsamp, tx_from_time);
+				assert(ntx.len >= 0 && ntx.len <= nsamp);
+				assert(ntx.end >= 0 && ntx.end <= /*ntx.len*/nsamp);
+				assert(ntx.begin >= 0 && ntx.begin <= /*ntx.len*/nsamp);
+				tx_last_end_time = tx_from_time + (timestamp_t)(sample_ns * ntx.len);
+			}
+
 			if(ntx.end > ntx.begin) {
 				flags = SOAPY_SDR_HAS_TIME;
 				// If ntx.end does not point to end of the buffer, a burst has ended
-				if(ntx.end < BUFLEN) {
+				if(ntx.end < ntx.len) {
 					flags |= SOAPY_SDR_END_BURST;
 					tx_burst_going = 0;
 				} else {
@@ -190,8 +237,8 @@ static int execute(void *arg)
 
 				ret = SoapySDRDevice_writeStream(sdr, txstream,
 					txbuffs, ntx.end - ntx.begin, &flags,
-					tx_timestamp + (timestamp_t)(sample_ns*ntx.begin),
-					100000);
+					tx_from_time + (timestamp_t)(sample_ns * ntx.begin),
+					timeout_us);
 				if(ret <= 0)
 					soapy_fail("SoapySDRDevice_writeStream", ret);
 			} else {
@@ -206,7 +253,7 @@ static int execute(void *arg)
 					flags = SOAPY_SDR_HAS_TIME | SOAPY_SDR_END_BURST;
 					ret = SoapySDRDevice_writeStream(sdr, txstream,
 						txbuffs, 1, &flags,
-						rx_timestamp + radioconf->rx_tx_latency, 100000);
+						tx_from_time, timeout_us);
 					if(ret <= 0)
 						soapy_fail("SoapySDRDevice_writeStream (end of burst)", ret);
 				}
@@ -266,6 +313,9 @@ static int set_callbacks(void *arg, const struct receiver_code *receiver, void *
 
 
 const struct soapysdr_io_conf soapysdr_io_defaults = {
+	.buffer = 2048,
+	.flags = SOAPYIO_RX_ON | SOAPYIO_TX_ON,
+	.tx_latency = 8192,
 	.samplerate = 1e6,
 	.rx_centerfreq = 433.8e6,
 	.tx_centerfreq = 433.8e6,
@@ -273,13 +323,14 @@ const struct soapysdr_io_conf soapysdr_io_defaults = {
 	.tx_gain = 80,
 	.rx_channel = 0,
 	.tx_channel = 0,
-	.tx_on = 1,
-	.rx_tx_latency = 50000000,
 	.rx_antenna = NULL,
 	.tx_antenna = NULL
 };
 
 CONFIG_BEGIN(soapysdr_io)
+CONFIG_I(flags)
+CONFIG_I(buffer)
+CONFIG_I(tx_latency)
 CONFIG_F(samplerate)
 CONFIG_F(rx_centerfreq)
 CONFIG_F(tx_centerfreq)
@@ -287,8 +338,6 @@ CONFIG_F(rx_gain)
 CONFIG_F(tx_gain)
 CONFIG_I(rx_channel)
 CONFIG_I(tx_channel)
-CONFIG_I(tx_on)
-CONFIG_F(rx_tx_latency)
 CONFIG_C(rx_antenna)
 CONFIG_C(tx_antenna)
 	if (strncmp(parameter, "soapy-", 6) == 0) {

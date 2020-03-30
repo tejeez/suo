@@ -183,16 +183,23 @@ struct tx_input_code {
 
 // Return value of transmitter execute
 typedef struct {
-	// Index of the sample where transmitter should turn on
+	/* Number of the samples produced, also including the time
+	 * outside of a burst. Transmitter code should usually
+	 * aim to produce exactly the number of samples requested
+	 * and some I/O drivers may assume this is the case,
+	 * but exceptions are possible. */
+	int len;
+	// Index of the sample where transmit burst starts
 	int begin;
-	/* Index of the sample where transmitter should turn off.
+	/* Index of the sample where transmit burst ends.
 	 * If the transmission lasts the whole buffer,
-	 * end is equal to length of the buffer.
+	 * end is equal to len and begin is 0.
 	 * If there's nothing to transmit, end is equal to begin. */
 	int end;
 } tx_return_t;
 
-/* Interface to a transmitter module. */
+/* Interface to a transmitter module.
+ * These perform modulation of a signal. */
 struct transmitter_code {
 	const char *name;
 	void *(*init)      (const void *conf);
@@ -203,7 +210,8 @@ struct transmitter_code {
 	// Set callback to a tx_input module which provides frames to be transmitted
 	int   (*set_callbacks) (void *, const struct tx_input_code *, void *tx_input_arg);
 
-	// Generate a buffer of signal to be transmitted
+	/* Generate a buffer of signal to be transmitted.
+	 * Timestamp points to the first sample in the buffer. */
 	tx_return_t (*execute) (void *, sample_t *samples, size_t nsamples, timestamp_t timestamp);
 };
 

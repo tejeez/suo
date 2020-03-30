@@ -122,7 +122,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	self->framelen = framelen;
 	self->framepos = framepos;
 	self->symphase = symphase;
-	return (tx_return_t){ .begin=0, .end = nsamples };
+	return (tx_return_t){ .len = maxsamples, .begin=0, .end = nsamples };
 }
 
 
