@@ -337,6 +337,8 @@ CONFIG_F(samplerate)
 CONFIG_F(symbolrate)
 CONFIG_F(centerfreq)
 CONFIG_I(syncword)
+CONFIG_I(synclen)
+CONFIG_I(framelen)
 CONFIG_END()
 
 

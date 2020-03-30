@@ -1,6 +1,7 @@
 #include "modem/simple_receiver.h"
 #include "modem/burst_dpsk_receiver.h"
 #include "modem/simple_transmitter.h"
+#include "modem/psk_transmitter.h"
 #include "coding/basic_decoder.h"
 #include "coding/efrk7_decoder.h"
 #include "coding/basic_encoder.h"
@@ -15,6 +16,7 @@ const struct receiver_code *suo_receivers[] = {
 
 const struct transmitter_code *suo_transmitters[] = {
 	&simple_transmitter_code,
+	&psk_transmitter_code,
 	NULL
 };
 

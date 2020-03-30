@@ -49,7 +49,8 @@ size_t suo_ddc_out_size(struct suo_ddc *ddc, size_t inlen)
 }
 
 
-/* Return the number of output samples.
+/* Do digital down-conversion for given input samples.
+ * Return the number of output samples.
  * Update the timestamp to correspond to start of the output buffer. */
 size_t suo_ddc_execute(struct suo_ddc *self, const sample_t *in, size_t inlen, sample_t *out, timestamp_t *timestamp)
 {
@@ -76,5 +77,37 @@ size_t suo_ddc_execute(struct suo_ddc *self, const sample_t *in, size_t inlen, s
 }
 
 
-/* TODO: implement a DUC which outputs exactly the number of samples
- * requested and gives the number of input samples required */
+/* Calculate the required number of input samples
+ * for a given number of output samples.
+ * Also correct the timestamp. */
+size_t suo_duc_in_size(struct suo_ddc *ddc, size_t outlen, timestamp_t *timestamp)
+{
+	/* The timestamp is not exactly accurate now, since it does not
+	 * take into account the timing phase of the resampler. */
+	*timestamp -= ddc->delay_ns;
+
+	return (int)floorf((float)outlen / ddc->resamprate);
+}
+
+
+/* Do digital up-conversion for given input samples.
+ * Return the number of output samples.
+ *
+ * Note: at the moment, the number of output samples may be less
+ * than the number requested, so beware if you try to use with
+ * an I/O module that expects an exact number of samples.
+ * With the SoapySDR I/O module, it should work though, since it
+ * will just ask for a bit more samples the next time. */
+size_t suo_duc_execute(struct suo_ddc *self, const sample_t *in, size_t inlen, sample_t *out)
+{
+	unsigned outn = 0;
+	msresamp_crcf_execute(self->resamp, in, inlen, out, &outn);
+
+	size_t i, outlen = outn;
+	for (i = 0; i < outlen; i++) {
+		nco_crcf_step(self->nco);
+		nco_crcf_mix_up(self->nco, out[i], &out[i]);
+	}
+
+	return outlen;
+}

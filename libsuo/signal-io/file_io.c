@@ -1,7 +1,7 @@
 #include "file_io.h"
 #include "suo_macros.h"
 #include <stdio.h>
-
+#include <assert.h>
 
 
 typedef uint8_t cu8_t[2];
@@ -70,7 +70,7 @@ static int execute(void *arg)
 {
 	struct file_io *self = arg;
 	enum inputformat inputformat = self->conf.format;
-	timestamp_t timestamp = 0;
+	timestamp_t timestamp = 0, tx_latency_time = 0;
 	sample_t buf2[BUFLEN];
 
 	if (self->in == NULL)
@@ -96,6 +96,14 @@ static int execute(void *arg)
 			if(n == 0) break;
 		}
 		self->receiver->execute(self->receiver_arg, buf2, n, timestamp);
+
+		if (self->transmitter != NULL) {
+			assert(n <= BUFLEN);
+			tx_return_t tr;
+			tr = self->transmitter->execute(self->transmitter_arg, buf2, n, timestamp + tx_latency_time);
+			fwrite(buf2, sizeof(sample_t), tr.len, self->out);
+		}
+
 		timestamp += 1e9 * n / self->conf.samplerate;
 	}
 
