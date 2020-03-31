@@ -111,10 +111,26 @@ int test_input_set_callbacks(void *arg, const struct encoder_code *encoder, void
 int test_input_get_frame(void *arg, bit_t *bits, size_t maxbits, timestamp_t timestamp, struct tx_metadata *metadata)
 {
 	struct test_input *self = arg;
+	(void)self;
 	(void)metadata;
+	const timestamp_t frame_interval = 20000000;
 	if(timestamp % 400000000LL < 100000000LL) {
+		// round up to next multiple of frame_interval
+		metadata->timestamp = (timestamp + frame_interval) / frame_interval * frame_interval;
+
+#if 0
 		const uint8_t packet[30] = "testidataa";
 		return self->encoder.encode(self->encoder_arg, bits, maxbits, packet, 30);
+#endif
+#define TESTLEN 30
+		if (maxbits < TESTLEN)
+			return -1;
+		memcpy(bits, (const uint8_t[TESTLEN]){
+			0,0, 0,0,
+			1,1, 0,1, 0,0, 0,0, 1,1, 1,0, 1,0, 0,1, 1,1, 0,1, 0,0,
+			0,0, 0,0
+		}, TESTLEN);
+		return TESTLEN;
 	}
 	return -1;
 }

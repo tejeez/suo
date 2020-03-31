@@ -84,7 +84,7 @@ size_t suo_duc_in_size(struct suo_ddc *ddc, size_t outlen, timestamp_t *timestam
 {
 	/* The timestamp is not exactly accurate now, since it does not
 	 * take into account the timing phase of the resampler. */
-	*timestamp -= ddc->delay_ns;
+	*timestamp += ddc->delay_ns;
 
 	return (int)floorf((float)outlen / ddc->resamprate);
 }

@@ -17,7 +17,7 @@ struct psk_transmitter {
 	float sample_ns;
 
 	/* Callbacks */
-	struct tx_input_code input;
+	const struct tx_input_code *input;
 	void *input_arg;
 
 	/* liquid-dsp and suo objects */
@@ -25,6 +25,7 @@ struct psk_transmitter {
 	firfilt_crcf l_mf; // Matched filter
 
 	/* State */
+	bool transmitting;
 	unsigned framelen, framepos;
 	unsigned symph; // Symbol clock phase
 	unsigned pskph; // DPSK phase accumulator
@@ -47,11 +48,32 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	unsigned symph = self->symph; // Symbol clock phase
 	unsigned pskph = self->pskph; // DPSK phase accumulator
 	unsigned framepos = self->framepos;
-	const unsigned framelen = self->framelen;
+	unsigned framelen = self->framelen;
+	bool transmitting = self->transmitting;
+	const float sample_ns = self->sample_ns;
 	const float amp = 0.5f; // Amplitude
+
+	if (framelen == 0) {
+		int fl = self->input->get_frame(self->input_arg,
+			self->framebuf, FRAMELEN_MAX,
+			timestamp,
+			&self->metadata);
+		if (fl > 0)
+			framelen = fl;
+	}
+
 	for (i = 0; i < buflen; i++) {
 		sample_t s = 0;
-		if (symph == 0) {
+		if (!transmitting && framelen > 0) {
+			/* Frame is waiting to be transmitted */
+			timestamp_t timenow = timestamp + (timestamp_t)(sample_ns * i);
+			int64_t timediff = timenow - self->metadata.timestamp;
+			if (timediff >= 0) {
+				transmitting = 1;
+				symph = 0;
+			}
+		}
+		if (transmitting && symph == 0) {
 			unsigned bit0, bit1;
 			bit0 = self->framebuf[framepos]   & 1;
 			bit1 = self->framebuf[framepos+1] & 1;
@@ -68,9 +90,19 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			s = (cosf(pi_4f * pskph) + I*sinf(pi_4f * pskph)) * amp;
 
 			framepos += 2;
-			if (framepos >= framelen) {
-				// TODO: ask for next frame
+			if (framepos+1 >= framelen) {
 				framepos = 0;
+				transmitting = 0;
+				int fl = self->input->get_frame(self->input_arg,
+					self->framebuf, FRAMELEN_MAX,
+					timestamp + (timestamp_t)(sample_ns * i),
+					&self->metadata);
+				if (fl > 0) {
+					framelen = fl;
+				} else {
+					// nothing to transmit
+					framelen = 0;
+				}
 			}
 		}
 		firfilt_crcf_push(self->l_mf, s);
@@ -80,6 +112,8 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	self->symph = symph;
 	self->pskph = pskph;
 	self->framepos = framepos;
+	self->framelen = framelen;
+	self->transmitting = transmitting;
 
 	size_t retlen = suo_duc_execute(self->duc, buf, buflen, samples);
 	assert(retlen <= maxsamples);
@@ -122,7 +156,7 @@ static void *init(const void *conf_v)
 static int set_callbacks(void *arg, const struct tx_input_code *input, void *input_arg)
 {
 	struct psk_transmitter *self = arg;
-	self->input = *input;
+	self->input = input;
 	self->input_arg = input_arg;
 	return 0;
 }
