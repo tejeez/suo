@@ -87,8 +87,8 @@ static void output_frame(struct burst_dpsk_receiver *self, timestamp_t ts, unsig
 		sample_t dp;
 		// Differential phase
 		dp = win[(i+1) * OVERSAMP] * conjf(win[i * OVERSAMP]) * gain;
-		self->frame.data[2*i]   = float_to_softbit(cimagf(dp));
-		self->frame.data[2*i+1] = float_to_softbit(crealf(dp));
+		self->frame.data[2*i]   = float_to_softbit(-cimagf(dp));
+		self->frame.data[2*i+1] = float_to_softbit(-crealf(dp));
 	}
 	self->frame.len = 2*i;
 	//TODO: check array size somewhere

@@ -59,8 +59,10 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	if (self->state == FRAME_NONE) {
 		int fl = self->input->get_frame(self->input_arg,
 			&self->frame, FRAMELEN_MAX, timestamp);
-		if (fl >= 0)
+		if (fl >= 0) {
 			self->state = FRAME_WAIT;
+			fprintf(stderr, "Got new frame %d\n", self->frame.len);
+		}
 	}
 
 	for (i = 0; i < buflen; i++) {
@@ -72,6 +74,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			if (timediff >= 0) {
 				self->state = FRAME_TX;
 				symph = 0;
+				fprintf(stderr, "Starting transmission %d\n", self->frame.len);
 			}
 		}
 		if (self->state == FRAME_TX && symph == 0) {
@@ -99,6 +102,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 					timestamp + (timestamp_t)(sample_ns * i));
 				if (fl >= 0)
 					self->state = FRAME_WAIT;
+				fprintf(stderr, "Got next frame %d\n", self->frame.len);
 			}
 		}
 		firfilt_crcf_push(self->l_mf, s);

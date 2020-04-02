@@ -116,10 +116,13 @@ static int zmq_output_destroy(void *arg)
 
 static void *zmq_decoder_main(void *arg)
 {
+	#if 0
 	struct zmq_output *self = arg;
 
-	bit_t bits[BITS_MAXLEN];
-	uint8_t decoded[DECODED_MAXLEN];
+	char decoded_buf[sizeof(struct rx_frame) + DECODED_MAXLEN];
+	struct rx_frame *decoded = (struct rx_frame *)decoded_buf;
+	ret = self->decoder.decode(self->decoder_arg, &frame, decoded, DECODED_MAXLEN);
+
 	struct rx_metadata metadata_;
 	struct rx_metadata *metadata = &metadata_;
 
@@ -131,11 +134,12 @@ static void *zmq_decoder_main(void *arg)
 	while(self->running) {
 		int nread;
 
-		nread = zmq_recv(self->z_decr, bits, sizeof(bit_t)*BITS_MAXLEN, 0);
+		nread = zmq_recv(self->z_decr, input, sizeof(bit_t)*BITS_MAXLEN, 0);
 		if(nread >= 0) {
 			int nbits = nread / sizeof(bit_t);
 
 			int ndecoded = self->decoder.decode(self->decoder_arg,
+				input,
 				bits, nbits, decoded, DECODED_MAXLEN, metadata);
 			assert(ndecoded <= DECODED_MAXLEN);
 
@@ -161,6 +165,7 @@ static void *zmq_decoder_main(void *arg)
 	}
 
 fail:
+#endif
 	return NULL;
 }
 

@@ -102,6 +102,7 @@ static int zmq_input_set_callbacks(void *arg, const struct encoder_code *encoder
 
 static void *zmq_encoder_main(void *arg)
 {
+	#if 0
 	struct zmq_input *self = arg;
 
 	bit_t bits[BITS_MAXLEN];
@@ -130,6 +131,7 @@ static void *zmq_encoder_main(void *arg)
 	}
 
 fail:
+#endif
 	return NULL;
 }
 

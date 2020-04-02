@@ -90,10 +90,10 @@ struct decoder_code {
 	int   (*set_conf)  (void *conf, char *parameter, char *value);
 
 	/* Decode a frame.
-	 * Input is an array of soft decision bits,
-	 * output is an array of decoded data bytes.
-	 * Return the number of bytes in the decoded frame. */
-	int   (*decode)  (void *, const softbit_t *bits, size_t nbits, uint8_t *decoded, size_t max_nbytes, struct rx_metadata *);
+	 * Input frame data is soft decision bits,
+	 * output frame data is decoded data bytes.
+	 * Return negative value if decoding failed. */
+	int   (*decode)  (void *, const struct rx_frame *in, struct rx_frame *out, size_t maxlen);
 };
 
 
@@ -111,7 +111,6 @@ struct rx_output_code {
 
 	// Called by a receiver when a frame has been received
 	int   (*frame) (void *, const struct rx_frame *frame);
-	//int   (*frame) (void *, const softbit_t *bits, size_t nbits, struct rx_metadata *);
 };
 
 
@@ -175,7 +174,7 @@ struct encoder_code {
 	 * Input is an array of data bytes,
 	 * output is an array of encoded symbols.
 	 * Return the number of symbols in the encoded frame. */
-	int   (*encode)  (void *, bit_t *symbols, size_t max_nsymbols, const uint8_t *input, size_t nbytes);
+	int   (*encode)  (void *, const struct tx_frame *in, struct tx_frame *out, size_t maxlen);
 };
 
 
@@ -193,7 +192,6 @@ struct tx_input_code {
 
 	// Called by a transmitter to request the next frame to be transmitted
 	int   (*get_frame) (void *, struct tx_frame *frame, size_t maxlen, timestamp_t timenow);
-	//int   (*get_frame) (void *, bit_t *symbols, size_t nsymbols, timestamp_t timestamp, struct tx_metadata *);
 };
 
 

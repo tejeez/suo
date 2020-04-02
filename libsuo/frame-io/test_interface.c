@@ -20,7 +20,8 @@ void *test_output_init(const void *conf)
 static int test_output_frame(void *arg, const struct rx_frame *frame)
 {
 	struct test_output *self = arg;
-	uint8_t decoded[0x200];
+	char decoded_buf[sizeof(struct rx_frame) + 0x200];
+	struct rx_frame *decoded = (struct rx_frame *)decoded_buf;
 	size_t i, nbits = frame->len;
 	const struct rx_metadata *metadata = &frame->m;
 	int ret;
@@ -29,16 +30,14 @@ static int test_output_frame(void *arg, const struct rx_frame *frame)
 		printf("%3d ", frame->data[i]);
 	printf("\n\n");
 
-#if 0
-//TODO: fix decoder interface too
-	ret = self->decoder.decode(self->decoder_arg, bits, nbits, decoded, 0x200, metadata);
+	ret = self->decoder.decode(self->decoder_arg, frame, decoded, 0x200);
 	if(ret >= 0) {
 		for(i = 0; i < (size_t)ret; i++)
-			printf("%02x ", decoded[i]);
+			printf("%02x ", decoded->data[i]);
 		printf("\n");
 		/* Print those which are valid ASCII characters */
 		for(i = 0; i < (size_t)ret; i++) {
-			char c = (char)decoded[i];
+			char c = (char)decoded->data[i];
 			if(c >= 32 && c <= 126)
 				putchar(c);
 		}
@@ -46,7 +45,6 @@ static int test_output_frame(void *arg, const struct rx_frame *frame)
 	} else {
 		printf("Decode failed (%d)\n", ret);
 	}
-#endif
 	printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  OER: %E  Mode: %u\n\n",
 		(long long)metadata->timestamp,
 		(double)metadata->cfo, (double)metadata->cfod,
@@ -133,6 +131,7 @@ int test_input_get_frame(void *arg, struct tx_frame *frame, size_t maxlen, times
 			1,1, 0,1, 0,0, 0,0, 1,1, 1,0, 1,0, 0,1, 1,1, 0,1, 0,0,
 			0,0, 0,0
 		}, TESTLEN);
+		frame->len = TESTLEN;
 		return TESTLEN;
 	}
 	return -1;
