@@ -60,6 +60,7 @@ static void *zmq_input_init(const void *confv)
 	ZMQCHECK(zmq_bind(self->z_tx_sub, conf->address));
 	ZMQCHECK(zmq_setsockopt(self->z_tx_sub, ZMQ_SUBSCRIBE, "", 0));
 
+#ifdef ENCODER_THREAD // TODO: make it a configuration flag
 	/* Create unique name in case multiple instances are initialized */
 	char pair_name[20];
 	static char pair_number=0;
@@ -69,6 +70,7 @@ static void *zmq_input_init(const void *confv)
 	ZMQCHECK(zmq_bind(self->z_txbuf_r, pair_name));
 	self->z_txbuf_w = zmq_socket(zmq, ZMQ_PAIR);
 	ZMQCHECK(zmq_connect(self->z_txbuf_w, pair_name));
+#endif
 
 #if 0
 	self->running = 1;
@@ -91,7 +93,9 @@ static int zmq_input_set_callbacks(void *arg, const struct encoder_code *encoder
 	/* Create thread only after callbacks have been set
 	 * so it doesn't accidentally try to call them before */
 	self->running = 1;
+#ifdef ENCODER_THREAD // TODO: make it a configuration flag
 	pthread_create(&self->encoder_thread, NULL, zmq_encoder_main, self);
+#endif
 	return 0;
 }
 
@@ -130,20 +134,25 @@ fail:
 }
 
 
-static int zmq_input_get_frame(void *arg, bit_t *bits, size_t max_nbits, timestamp_t timestamp, struct tx_metadata *metadata)
+static int zmq_input_get_frame(void *arg, struct tx_frame *frame, size_t maxlen, timestamp_t timenow)
 {
-	int nread, nbits;
+	int nread;
 	struct zmq_input *self = arg;
 
-	(void)timestamp; // Not used since protocol stack doesn't run here
-	(void)metadata; // TODO
+	(void)timenow; // Not used since protocol stack doesn't run here
 
-	nread = zmq_recv(self->z_txbuf_r, bits, sizeof(bit_t)*max_nbits, ZMQ_DONTWAIT);
-	if(nread >= 0) {
-		nbits = nread / sizeof(bit_t);
-		return nbits;
-	} else {
+#ifdef ENCODER_THREAD // TODO: make it a configuration flag
+	nread = zmq_recv(self->z_txbuf_r, frame, sizeof(*frame) + maxlen, ZMQ_DONTWAIT);
+#else
+	nread = zmq_recv(self->z_tx_sub, frame, sizeof(*frame) + maxlen, ZMQ_DONTWAIT);
+#endif
+	if (nread <= 0) {
 		/* No frame in queue */
+		return -1;
+	} else if((size_t)nread == sizeof(*frame) + frame->len) {
+		return frame->len;
+	} else {
+		fprintf(stderr, "Warning: too long frame?\n");
 		return -1;
 	}
 }
@@ -155,8 +164,10 @@ static int zmq_input_destroy(void *arg)
 	if(self == NULL) return 0;
 	if(self->running) {
 		self->running = 0;
+#ifdef DECODER_THREAD // TODO: make it a configuration flag
 		pthread_kill(self->encoder_thread, SIGTERM);
 		pthread_join(self->encoder_thread, NULL);
+#endif
 	}
 	return 0;
 }

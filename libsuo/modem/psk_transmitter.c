@@ -6,10 +6,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdio.h>
 #include <liquid/liquid.h>
 
 #define FRAMELEN_MAX 0x900
 #define OVERSAMP 4
+
+enum frame_state { FRAME_NONE, FRAME_WAIT, FRAME_TX };
 
 struct psk_transmitter {
 	/* Configuration */
@@ -25,14 +28,15 @@ struct psk_transmitter {
 	firfilt_crcf l_mf; // Matched filter
 
 	/* State */
-	bool transmitting;
-	unsigned framelen, framepos;
+	enum frame_state state;
+	unsigned framepos;
 	unsigned symph; // Symbol clock phase
 	unsigned pskph; // DPSK phase accumulator
 
 	/* Buffers */
-	struct tx_metadata metadata;
-	bit_t framebuf[FRAMELEN_MAX];
+	struct tx_frame frame;
+	/* Allocate space for flexible array member */
+	bit_t frame_buffer[FRAMELEN_MAX];
 };
 
 
@@ -45,38 +49,35 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	size_t i;
 	sample_t buf[buflen];
 
-	unsigned symph = self->symph; // Symbol clock phase
-	unsigned pskph = self->pskph; // DPSK phase accumulator
-	unsigned framepos = self->framepos;
-	unsigned framelen = self->framelen;
-	bool transmitting = self->transmitting;
 	const float sample_ns = self->sample_ns;
 	const float amp = 0.5f; // Amplitude
 
-	if (framelen == 0) {
+	unsigned symph = self->symph; // Symbol clock phase
+	unsigned pskph = self->pskph; // DPSK phase accumulator
+	unsigned framepos = self->framepos;
+
+	if (self->state == FRAME_NONE) {
 		int fl = self->input->get_frame(self->input_arg,
-			self->framebuf, FRAMELEN_MAX,
-			timestamp,
-			&self->metadata);
-		if (fl > 0)
-			framelen = fl;
+			&self->frame, FRAMELEN_MAX, timestamp);
+		if (fl >= 0)
+			self->state = FRAME_WAIT;
 	}
 
 	for (i = 0; i < buflen; i++) {
 		sample_t s = 0;
-		if (!transmitting && framelen > 0) {
+		if (self->state == FRAME_WAIT) {
 			/* Frame is waiting to be transmitted */
 			timestamp_t timenow = timestamp + (timestamp_t)(sample_ns * i);
-			int64_t timediff = timenow - self->metadata.timestamp;
+			int64_t timediff = timenow - self->frame.m.timestamp;
 			if (timediff >= 0) {
-				transmitting = 1;
+				self->state = FRAME_TX;
 				symph = 0;
 			}
 		}
-		if (transmitting && symph == 0) {
+		if (self->state == FRAME_TX && symph == 0) {
 			unsigned bit0, bit1;
-			bit0 = self->framebuf[framepos]   & 1;
-			bit1 = self->framebuf[framepos+1] & 1;
+			bit0 = self->frame.data[framepos]   & 1;
+			bit1 = self->frame.data[framepos+1] & 1;
 
 			if (bit0 == 1 && bit1 == 1)
 				pskph -= 3;
@@ -90,19 +91,14 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			s = (cosf(pi_4f * pskph) + I*sinf(pi_4f * pskph)) * amp;
 
 			framepos += 2;
-			if (framepos+1 >= framelen) {
+			if (framepos+1 >= self->frame.len) {
 				framepos = 0;
-				transmitting = 0;
+				self->state = FRAME_NONE;
 				int fl = self->input->get_frame(self->input_arg,
-					self->framebuf, FRAMELEN_MAX,
-					timestamp + (timestamp_t)(sample_ns * i),
-					&self->metadata);
-				if (fl > 0) {
-					framelen = fl;
-				} else {
-					// nothing to transmit
-					framelen = 0;
-				}
+					&self->frame, FRAMELEN_MAX,
+					timestamp + (timestamp_t)(sample_ns * i));
+				if (fl >= 0)
+					self->state = FRAME_WAIT;
 			}
 		}
 		firfilt_crcf_push(self->l_mf, s);
@@ -112,8 +108,6 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	self->symph = symph;
 	self->pskph = pskph;
 	self->framepos = framepos;
-	self->framelen = framelen;
-	self->transmitting = transmitting;
 
 	size_t retlen = suo_duc_execute(self->duc, buf, buflen, samples);
 	assert(retlen <= maxsamples);
@@ -144,10 +138,6 @@ static void *init(const void *conf_v)
 	self->l_mf = firfilt_crcf_create(taps, MFTAPS);
 
 	// For initial testing:
-	self->framelen = 50;
-	memcpy(self->framebuf, (const uint8_t[22]){
-		1,1, 0,1, 0,0, 0,0, 1,1, 1,0, 1,0, 0,1, 1,1, 0,1, 0,0
-	}, 22);
 
 	return self;
 }

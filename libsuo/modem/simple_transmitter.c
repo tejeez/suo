@@ -27,8 +27,9 @@ struct simple_transmitter {
 	void *input_arg;
 
 	/* Buffers */
-	struct tx_metadata metadata;
-	bit_t framebuf[FRAMELEN_MAX];
+	struct tx_frame frame;
+	/* Allocate space for flexible array member */
+	bit_t frame_buffer[FRAMELEN_MAX];
 };
 
 
@@ -77,7 +78,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 
 	const uint32_t symrate = self->symrate;
 	const float freq0 = self->freq0, freq1 = self->freq1;
-	bit_t *framebuf = self->framebuf;
+	bit_t *framebuf = self->frame.data;
 
 	bool transmitting = self->transmitting;
 	unsigned framelen = self->framelen, framepos = self->framepos;
@@ -85,7 +86,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 
 	if(!transmitting) {
 		int ret;
-		ret = self->input.get_frame(self->input_arg, framebuf, FRAMELEN_MAX, timestamp, &self->metadata);
+		ret = self->input.get_frame(self->input_arg, &self->frame, FRAMELEN_MAX, timestamp);
 		if(ret > 0) {
 			assert(ret <= FRAMELEN_MAX);
 			transmitting = 1;

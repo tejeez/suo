@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <assert.h>
+#include <SoapySDR/Version.h>
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
 
@@ -285,10 +286,12 @@ exit_soapy:
 static void *init(const void *conf)
 {
 	struct soapysdr_io *self;
-	self = malloc(sizeof(*self));
+	self = calloc(1, sizeof(*self));
 	if (self == NULL)
 		return self;
 	self->conf = *(struct soapysdr_io_conf*)conf;
+	if (strcmp(SoapySDR_getABIVersion(), SOAPY_SDR_ABI_VERSION) != 0)
+		fprintf(stderr, "Warning: Wrong SoapySDR ABI version\n");
 	return self;
 }
 

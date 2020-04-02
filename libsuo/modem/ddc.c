@@ -86,7 +86,13 @@ size_t suo_duc_in_size(struct suo_ddc *ddc, size_t outlen, timestamp_t *timestam
 	 * take into account the timing phase of the resampler. */
 	*timestamp += ddc->delay_ns;
 
-	return (int)floorf((float)outlen / ddc->resamprate);
+	size_t s = (float)outlen / ddc->resamprate;
+	/* msresamp sometimes produces a bit too much, so let's try
+	 * giving one samples less input. */
+	if (s >= 2)
+		return s - 1;
+	else
+		return 0;
 }
 
 
@@ -101,7 +107,7 @@ size_t suo_duc_in_size(struct suo_ddc *ddc, size_t outlen, timestamp_t *timestam
 size_t suo_duc_execute(struct suo_ddc *self, const sample_t *in, size_t inlen, sample_t *out)
 {
 	unsigned outn = 0;
-	msresamp_crcf_execute(self->resamp, in, inlen, out, &outn);
+	msresamp_crcf_execute(self->resamp, (sample_t*)in, inlen, out, &outn);
 
 	size_t i, outlen = outn;
 	for (i = 0; i < outlen; i++) {

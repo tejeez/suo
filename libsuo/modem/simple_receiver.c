@@ -48,8 +48,9 @@ struct simple_receiver {
 	void *output_arg;
 
 	/* Buffers */
-	struct rx_metadata metadata;
-	bit_t framebuf[FRAMELEN_MAX];
+	struct rx_frame frame;
+	/* Allocate space for flexible array member */
+	bit_t frame_buffer[FRAMELEN_MAX];
 };
 
 
@@ -136,10 +137,11 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 	bool receiving_frame = self->receiving_frame;
 
 	if(framepos < framelen) {
-		self->framebuf[framepos] = bit ? 0xFF : 0;
+		self->frame.data[framepos] = bit ? 0xFF : 0;
 		framepos++;
 		if(framepos == framelen) {
-			self->output.frame(self->output_arg, self->framebuf, framelen, &self->metadata);
+			self->frame.len = framelen;
+			self->output.frame(self->output_arg, &self->frame);
 			receiving_frame = 0;
 		}
 	} else {
@@ -161,10 +163,10 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 			receiving_frame = 1;
 
 			/* Fill in some metadata at start of the frame */
-			self->metadata.cfo = (nco_crcf_get_frequency(self->l_nco)
+			self->frame.m.cfo = (nco_crcf_get_frequency(self->l_nco)
 				- self->freq_center ) / self->nco_1Hz;
-			self->metadata.rssi = 10.0f * log10f(self->est_power);
-			self->metadata.ber = (float)syncerrs; // not real BER :D
+			self->frame.m.rssi = 10.0f * log10f(self->est_power);
+			self->frame.m.ber = (float)syncerrs; // not real BER :D
 		}
 	}
 
@@ -185,7 +187,7 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 	/* Allocate small buffers from stack */
 	sample_t samples2[self->resampint];
 
-	self->metadata.timestamp = timestamp;
+	self->frame.m.timestamp = timestamp;
 	/* TODO: increment timestamp in loop */
 
 	size_t si;

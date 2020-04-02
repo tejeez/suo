@@ -17,17 +17,20 @@ void *test_output_init(const void *conf)
 }
 
 
-int test_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_metadata *metadata)
+static int test_output_frame(void *arg, const struct rx_frame *frame)
 {
 	struct test_output *self = arg;
 	uint8_t decoded[0x200];
-	size_t i;
+	size_t i, nbits = frame->len;
+	const struct rx_metadata *metadata = &frame->m;
 	int ret;
 
 	for(i = 0; i < nbits; i++)
-		printf("%d", bits[i]);
+		printf("%3d ", frame->data[i]);
 	printf("\n\n");
 
+#if 0
+//TODO: fix decoder interface too
 	ret = self->decoder.decode(self->decoder_arg, bits, nbits, decoded, 0x200, metadata);
 	if(ret >= 0) {
 		for(i = 0; i < (size_t)ret; i++)
@@ -43,6 +46,7 @@ int test_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_meta
 	} else {
 		printf("Decode failed (%d)\n", ret);
 	}
+#endif
 	printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  OER: %E  Mode: %u\n\n",
 		(long long)metadata->timestamp,
 		(double)metadata->cfo, (double)metadata->cfod,
@@ -108,24 +112,23 @@ int test_input_set_callbacks(void *arg, const struct encoder_code *encoder, void
 }
 
 
-int test_input_get_frame(void *arg, bit_t *bits, size_t maxbits, timestamp_t timestamp, struct tx_metadata *metadata)
+int test_input_get_frame(void *arg, struct tx_frame *frame, size_t maxlen, timestamp_t timenow)
 {
 	struct test_input *self = arg;
 	(void)self;
-	(void)metadata;
 	const timestamp_t frame_interval = 20000000;
-	if(timestamp % 400000000LL < 100000000LL) {
+	if(timenow % 400000000LL < 100000000LL) {
 		// round up to next multiple of frame_interval
-		metadata->timestamp = (timestamp + frame_interval) / frame_interval * frame_interval;
+		frame->m.timestamp = (timenow + frame_interval) / frame_interval * frame_interval;
 
 #if 0
 		const uint8_t packet[30] = "testidataa";
-		return self->encoder.encode(self->encoder_arg, bits, maxbits, packet, 30);
+		return self->encoder.encode(self->encoder_arg, frame->data, maxlen, packet, 30);
 #endif
 #define TESTLEN 30
-		if (maxbits < TESTLEN)
+		if (maxlen < TESTLEN)
 			return -1;
-		memcpy(bits, (const uint8_t[TESTLEN]){
+		memcpy(frame->data, (const uint8_t[TESTLEN]){
 			0,0, 0,0,
 			1,1, 0,1, 0,0, 0,0, 1,1, 1,0, 1,0, 0,1, 1,1, 0,1, 0,0,
 			0,0, 0,0

@@ -10,26 +10,34 @@
 
 #define OVERSAMP 4
 
+#define FRAMELEN_MAX 600
+
 struct burst_dpsk_receiver {
 	/* Configuration */
 	struct burst_dpsk_receiver_conf c;
 	uint64_t syncmask, syncmask3;
 	float sample_ns;
+	unsigned win_len;
 
 	/* Callbacks */
-	struct rx_output_code output;
+	const struct rx_output_code *output;
 	void *output_arg;
 
 	/* liquid-dsp and suo things */
 	struct suo_ddc *ddc;
 	firfilt_crcf l_mf; // Matched filter
-	wdelaycf l_delay; // Delay for differential demodulation
+	windowcf l_win;
 
 	/* Other receiver state */
 	float avg_mag2;
 	uint8_t osph; //oversampling phase
 	uint64_t lastbits[OVERSAMP];
 	float clockest[OVERSAMP];
+
+	/* Buffers */
+	struct rx_frame frame;
+	/* Allocate space for flexible array member */
+	bit_t frame_buffer[FRAMELEN_MAX];
 };
 
 
@@ -49,20 +57,68 @@ static inline float maxf(const float *v, unsigned n)
 }
 
 
+static softbit_t float_to_softbit(float v)
+{
+	long o = 128.0f + 128.0f * v;
+	if (o <= 0)
+		return 0;
+	if (o >= 0xFF)
+		return 0xFF;
+	return o;
+}
+
+
+static void output_frame(struct burst_dpsk_receiver *self, timestamp_t ts, unsigned type)
+{
+	sample_t *win;
+	windowcf_read(self->l_win, &win);
+	unsigned i, len;
+
+	// AGC: calculate gain to normalize power to 1
+	float gain = 0;
+	len = self->win_len;
+	for (i = 0; i < len; i++) {
+		gain += mag2f(win[i]);
+	}
+	gain = 1.0f * len / gain;
+
+	len = self->c.framelen;
+	for (i = 0; i < len; i++) {
+		sample_t dp;
+		// Differential phase
+		dp = win[(i+1) * OVERSAMP] * conjf(win[i * OVERSAMP]) * gain;
+		self->frame.data[2*i]   = float_to_softbit(cimagf(dp));
+		self->frame.data[2*i+1] = float_to_softbit(crealf(dp));
+	}
+	self->frame.len = 2*i;
+	//TODO: check array size somewhere
+	assert(self->frame.len <= FRAMELEN_MAX);
+	self->frame.m.mode = type;
+	self->frame.m.timestamp = ts;
+	self->output->frame(self->output_arg, &self->frame);
+}
+
+
 /* Check for different syncwords.
  * TODO: add a window for symbols and output a frame if a syncword matches.
  * Now it just prints some debug information. */
 static inline void check_sync(struct burst_dpsk_receiver *self, uint64_t lb, timestamp_t ts) {
 	unsigned syncerrs;
 	syncerrs = __builtin_popcountll((lb & self->syncmask) ^ self->c.syncword1);
-	if (syncerrs <= 1)
+	if (syncerrs <= 0) {
 		fprintf(stderr, "%20lu ns: Found syncword 1 with %u errors\n", ts, syncerrs);
+		output_frame(self, ts, 1);
+	}
 	syncerrs = __builtin_popcountll((lb & self->syncmask) ^ self->c.syncword2);
-	if (syncerrs <= 1)
+	if (syncerrs <= 0) {
 		fprintf(stderr, "%20lu ns: Found syncword 2 with %u errors\n", ts, syncerrs);
+		output_frame(self, ts, 2);
+	}
 	syncerrs = __builtin_popcountll((lb & self->syncmask3) ^ self->c.syncword3);
-	if (syncerrs <= 3)
+	if (syncerrs <= 3) {
 		fprintf(stderr, "%20lu ns: Found syncword 3 with %u errors\n", ts, syncerrs);
+		output_frame(self, ts, 3);
+	}
 }
 
 
@@ -74,6 +130,7 @@ static int execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t
 	in_n = suo_ddc_execute(self->ddc, samples, nsamp, in, &timestamp);
 	float avg_mag2 = self->avg_mag2;
 	unsigned osph = self->osph; // oversampling phase
+	const int syncpos = 133 * OVERSAMP;
 	for (i = 0; i < in_n; i++) {
 		sample_t s = in[i], s1 = 0, dp;
 
@@ -81,23 +138,26 @@ static int execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t
 		firfilt_crcf_push(self->l_mf, s);
 		firfilt_crcf_execute(self->l_mf, &s);
 
-		// Differential phase demodulation and AGC
-		wdelaycf_push(self->l_delay, s);
-		wdelaycf_read(self->l_delay, &s1);
-		avg_mag2 += (mag2f(s) + mag2f(s1) - avg_mag2) * 0.1f;
-		dp = s * conjf(s1) * (1.0f / avg_mag2);
-		//dp = s * conjf(s1) * (1.0f / (mag2f(s) + mag2f(s1)));
-		if (dp != dp)
-			dp = 0;
-		print_samples(0, &dp, 1);
+		windowcf_push(self->l_win, s);
+		sample_t *win;
+		windowcf_read(self->l_win, &win);
 
-		/* Let's try using the mean magnitude of symbols to estimate
-		 * symbol timing. It should peak on the best timing phase. */
-		float ce = self->clockest[osph];
-		ce += (sqrtf(mag2f(s) * (1.0f / avg_mag2)) - ce) * 0.05f;
-		if (ce != ce)
-			ce = 0;
-		self->clockest[osph] = ce;
+		/* Pick the sample at the end of the syncword if
+		 * the window contains a full burst */
+		s = win[syncpos];
+		// One symbol before that for differential demodulation
+		s1 = win[syncpos - OVERSAMP];
+
+		// AGC
+		avg_mag2 += (mag2f(s) + mag2f(s1) - avg_mag2) * 0.1f;
+		float gain = 1.0f / sqrtf(avg_mag2);
+		if (gain != gain)
+			gain = 0;
+		s *= gain;
+		s1 *= gain;
+
+		// Differential phase demodulation
+		dp = s * conjf(s1);
 
 		// Store latest bits separately for each symbol timing phase
 		uint64_t lb =
@@ -105,15 +165,14 @@ static int execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t
 			(cimagf(dp) < 0 ? 2 : 0) |
 			(crealf(dp) < 0 ? 1 : 0);
 
-#if 0
-		unsigned syncerrs;
-		syncerrs = __builtin_popcountll((lb & self->syncmask) ^ self->c.syncword1);
-		sample_t debug = 0.04f * syncerrs;
-		syncerrs = __builtin_popcountll((lb & self->syncmask) ^ self->c.syncword2);
-		//debug += I * 0.04f * syncerrs;
-		debug += I * ce; // symbol timing recovery test
-		print_samples(0, &debug, 1);
-#endif
+		/* Let's try using the mean magnitude of symbols to estimate
+		 * symbol timing. It should peak on the best timing phase. */
+		float ce = self->clockest[osph];
+		ce += (sqrtf(mag2f(s)) - ce) * 0.05f;
+		if (ce != ce)
+			ce = 0;
+		self->clockest[osph] = ce;
+
 		/* If ce peaks, this could be the optimum timing phase.
 		 * Check for different syncwords */
 		if (ce == maxf(self->clockest, OVERSAMP))
@@ -148,7 +207,8 @@ static void *init(const void *conf_v)
 	liquid_firdes_rrcos(OVERSAMP, MFDELAY, 0.35, 0, taps);
 	self->l_mf = firfilt_crcf_create(taps, MFTAPS);
 
-	self->l_delay = wdelaycf_create(OVERSAMP);
+	self->win_len = (self->c.framelen + 2) * OVERSAMP;
+	self->l_win = windowcf_create(self->win_len);
 	return self;
 }
 
@@ -156,7 +216,7 @@ static void *init(const void *conf_v)
 static int set_callbacks(void *arg, const struct rx_output_code *output, void *output_arg)
 {
 	struct burst_dpsk_receiver *self = arg;
-	self->output = *output;
+	self->output = output;
 	self->output_arg = output_arg;
 	return 0;
 }
@@ -178,7 +238,7 @@ const struct burst_dpsk_receiver_conf burst_dpsk_receiver_defaults = {
 	.syncword3 = 0b11000001100111001110100111000001100111,
 	.synclen = 22,
 	.synclen3 = 38,
-	.framelen = 255
+	.framelen = 256
 };
 
 

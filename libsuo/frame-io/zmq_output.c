@@ -54,6 +54,7 @@ static void *zmq_output_init(const void *confv)
 	self->z_rx_pub = zmq_socket(zmq, ZMQ_PUB);
 	ZMQCHECK(zmq_bind(self->z_rx_pub, conf->address));
 
+#ifdef DECODER_THREAD // TODO: make it a configuration flag
 	/* Decoder runs in a separate thread.
 	 * ZeroMQ inproc pair transfers the frames to be decoded.
 	 * Initialize writing and reading ends of the pair
@@ -68,6 +69,7 @@ static void *zmq_output_init(const void *confv)
 	ZMQCHECK(zmq_bind(self->z_decr, pair_name));
 	self->z_decw = zmq_socket(zmq, ZMQ_PAIR);
 	ZMQCHECK(zmq_connect(self->z_decw, pair_name));
+#endif
 
 #if 0
 	self->running = 1;
@@ -90,7 +92,9 @@ static int zmq_output_set_callbacks(void *arg, const struct decoder_code *decode
 	/* Create thread only after callbacks have been set
 	 * so it doesn't accidentally try to call them before */
 	self->running = 1;
+#ifdef DECODER_THREAD // TODO: make it a configuration flag
 	pthread_create(&self->decoder_thread, NULL, zmq_decoder_main, self);
+#endif
 	return 0;
 }
 
@@ -101,8 +105,10 @@ static int zmq_output_destroy(void *arg)
 	if(self == NULL) return 0;
 	if(self->running) {
 		self->running = 0;
+#ifdef DECODER_THREAD // TODO: make it a configuration flag
 		pthread_kill(self->decoder_thread, SIGTERM);
 		pthread_join(self->decoder_thread, NULL);
+#endif
 	}
 	return 0;
 }
@@ -159,17 +165,18 @@ fail:
 }
 
 
-static int zmq_output_frame(void *arg, const bit_t *bits, size_t nbits, struct rx_metadata *metadata)
+static int zmq_output_frame(void *arg, const struct rx_frame *frame)
 {
 	struct zmq_output *self = arg;
-
-	// TODO: pass metadata to decoder thread
-	(void)metadata;
 
 	/* Non-blocking send to avoid blocking the receiver in case
 	 * decoder runs out of CPU time and ZMQ buffer fills up.
 	 * Frames are just discarded with a warning message in the case. */
-	ZMQCHECK(zmq_send(self->z_decw, bits, sizeof(bit_t)*nbits, ZMQ_DONTWAIT));
+#ifdef DECODER_THREAD // TODO: make it a configuration flag
+	ZMQCHECK(zmq_send(self->z_decw, frame, sizeof(struct rx_frame) + frame->len, ZMQ_DONTWAIT));
+#else
+	ZMQCHECK(zmq_send(self->z_rx_pub, frame, sizeof(struct rx_frame) + frame->len, ZMQ_DONTWAIT));
+#endif
 	return 0;
 fail:
 	return -1;

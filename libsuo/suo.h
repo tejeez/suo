@@ -62,6 +62,7 @@ struct any_code {
  * For now, there are extra fields reserved for modem-specific metadata. */
 struct rx_metadata {
 	uint32_t fields; /* Bitmap to indicate which fields are valid */
+	uint32_t mode; /* Modem-specific modulation and coding flags */
 	timestamp_t timestamp;
 	float cfo;  /* Frequency offset at start of the frame (Hz) */
 	float cfod; /* Drift of CFO during the frame (Hz) */
@@ -69,8 +70,14 @@ struct rx_metadata {
 	float snr;  /* Signal-to-noise ratio. Definition TBD */
 	float ber;  /* Bit error rate */
 	float oer;  /* Octet error rate */
-	uint32_t mode; /* Modem-specific modulation and coding flags */
 	uint32_t reserved[6];
+};
+
+// RX frame together with metadata
+struct rx_frame {
+	struct rx_metadata m; // Metadata
+	uint32_t len; // Length of the data field
+	uint8_t data[]; // Data (can be bytes, bits, symbols or soft bits)
 };
 
 
@@ -103,7 +110,8 @@ struct rx_output_code {
 	int   (*set_callbacks) (void *, const struct decoder_code *, void *decoder_arg);
 
 	// Called by a receiver when a frame has been received
-	int   (*frame) (void *, const softbit_t *bits, size_t nbits, struct rx_metadata *);
+	int   (*frame) (void *, const struct rx_frame *frame);
+	//int   (*frame) (void *, const softbit_t *bits, size_t nbits, struct rx_metadata *);
 };
 
 
@@ -140,11 +148,18 @@ struct receiver_code {
 // Metadata for frames to be transmitted
 struct tx_metadata {
 	uint32_t flags;
+	uint32_t mode; /* Modem-specific modulation and coding flags */
 	timestamp_t timestamp; /* Time when the frame should be transmitted */
 	float cfo; /* Frequency offset */
 	float amp; /* Amplitude */
-	uint32_t mode; /* Modem-specific modulation and coding flags */
 	uint32_t reserved[2];
+};
+
+// TX frame together with metadata
+struct tx_frame {
+	struct tx_metadata m; // Metadata
+	uint64_t len; // Length of the data field
+	uint8_t data[]; // Data (can be bytes, bits, symbols or soft bits)
 };
 
 
@@ -177,7 +192,8 @@ struct tx_input_code {
 	int   (*set_callbacks) (void *, const struct encoder_code *, void *encoder_arg);
 
 	// Called by a transmitter to request the next frame to be transmitted
-	int   (*get_frame) (void *, bit_t *symbols, size_t nsymbols, timestamp_t timestamp, struct tx_metadata *);
+	int   (*get_frame) (void *, struct tx_frame *frame, size_t maxlen, timestamp_t timenow);
+	//int   (*get_frame) (void *, bit_t *symbols, size_t nsymbols, timestamp_t timestamp, struct tx_metadata *);
 };
 
 
