@@ -72,33 +72,36 @@ static int bits_to_bytes(const softbit_t *bits, size_t nbits, uint8_t *bytes, si
 }
 
 
-static int decode(void *arg, const softbit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len, struct rx_metadata *metadata)
+static int decode(void *arg, const struct frame *in, struct frame *out, size_t maxlen)
+//static int decode(void *arg, const softbit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len, struct rx_metadata *metadata)
 {
 	struct basic_decoder *self = arg;
+	out->m = in->m; // Copy metadata
 	if (self->conf.bypass) {
-		size_t len = nbits < max_decoded_len ? nbits : max_decoded_len;
-		memcpy(decoded, bits, len);
+		size_t len = in->m.len;
+		if (len > maxlen) len = maxlen;
+		memcpy(out->data, in->data, len);
 		return len;
 	} else if(self->l_fec != NULL) {
 		/* Reed-Solomon decode */
 		int n, ndec;
-		n = bits_to_bytes(bits, nbits, self->buf, 255, self->conf.lsb_first);
+		n = bits_to_bytes(in->data, in->m.len, self->buf, 255, self->conf.lsb_first);
 
 		ndec = n - 32; // decoded message length
 		if(ndec < 0)
 			return -1; // not enough data
-		if((size_t)ndec > max_decoded_len)
+		if((size_t)ndec > maxlen)
 			return -1; // too small output buffer, can't decode
 
 		/* Hmm, liquid-dsp doesn't return whether decode succeeded or not :(
 		 * TODO: switch to libcorrect */
-		fec_decode(self->l_fec, ndec, self->buf, decoded);
+		fec_decode(self->l_fec, ndec, self->buf, out->data);
 
 		/* Re-encode it in order to calculate BER.
 		 * If the number of differing octets exceeds 16, assume decoding
 		 * has failed, since 32 parity bytes can't correct more than that.
 		 * Not sure if this is a very reliable way to detect a failure. */
-		fec_encode(self->l_fec, ndec, decoded, self->buf2);
+		fec_encode(self->l_fec, ndec, out->data, self->buf2);
 
 		int i, bit_errors = 0, octet_errors = 0;
 		for(i=0; i<n; i++) {
@@ -106,14 +109,16 @@ static int decode(void *arg, const softbit_t *bits, size_t nbits, uint8_t *decod
 			bit_errors += __builtin_popcount(v1 ^ v2);
 			if(v1 != v2) octet_errors++;
 		}
-		metadata->ber = (float)bit_errors / (float)(n*8);
-		metadata->oer = (float)octet_errors / (float)n;
+		out->m.ber = (float)bit_errors / (float)(n*8);
+		out->m.ser = (float)octet_errors / (float)n;
+		out->m.len = ndec;
 
 		if(octet_errors > 16)
 			return -1;
 		return ndec;
 	} else {
-		return bits_to_bytes(bits, nbits, decoded, max_decoded_len, self->conf.lsb_first);
+		return (out->m.len =
+		bits_to_bytes(in->data, in->m.len, out->data, maxlen, self->conf.lsb_first));
 	}
 }
 

@@ -81,9 +81,10 @@ static size_t word_to_bits(bit_t *bits, size_t nbits, uint64_t word)
 }
 
 
-static int encode(void *arg, bit_t *bits, size_t max_nbits, const uint8_t *data, size_t nbytes)
+static int encode(void *arg, const struct frame *in, struct frame *out, size_t max_nbits)
 {
 	struct basic_encoder *self = arg;
+	size_t nbytes = in->m.len;
 
 	size_t nenc = fec_get_enc_msg_length(self->l_scheme, nbytes);
 	if (nenc > FEC_BUFSIZE)
@@ -95,17 +96,19 @@ static int encode(void *arg, bit_t *bits, size_t max_nbits, const uint8_t *data,
 	if (total_nbits > max_nbits)
 		return -1; // too small output buffer, can't encode
 
-	uint8_t *bitp = bits;
+	uint8_t *bitp = out->data;
 	size_t i;
 	for (i = 0; i < self->conf.preamblelen; i++)
 		*bitp++ = i & 1;
 
 	bitp += word_to_bits(bitp, self->conf.synclen, self->conf.syncword);
 
-	fec_encode(self->l_fec, nbytes, (uint8_t*)data, self->buf);
+	fec_encode(self->l_fec, nbytes, (unsigned char*)in->data, self->buf);
 	bitp += bytes_to_bits(bitp, payload_nbits, self->buf, self->conf.lsb_first);
 
-	assert(bitp == bits + total_nbits);
+	assert(bitp == out->data + total_nbits);
+	out->m = in->m; // Copy metadata
+	out->m.len = total_nbits;
 	return total_nbits;
 }
 

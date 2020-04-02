@@ -6,9 +6,9 @@
 #include <math.h>
 #include <stdbool.h>
 
-/* ------------------
- * General data types
- * ------------------ */
+/* -----------------
+ * Common data types
+ * ----------------- */
 
 // Data type to represent samples
 typedef float complex sample_t;
@@ -50,10 +50,58 @@ struct any_code {
 };
 
 
+#define METADATA_FLAGS 1
+#define METADATA_MODE 2
+#define METADATA_TIMESTAMP 4
+#define METADATA_POWER 8
+#define METADATA_CFO 0x10
+#define METADATA_BER 0x20
+#define METADATA_SER 0x40
+#define METADATA_0 0x80
+#define METADATA_1 0x100
+#define METADATA_2 0x200
+#define METADATA_3 0x400
+#define METADATA_4 0x800
+#define METADATA_5 0x1000
+#define METADATA_6 0x2000
+#define METADATA_7 0x4000
+
+/* Flag to prevent transmission of a frame if it's too late,
+ * i.e. if the timestamp is already in the past */
+#define METADATA_NO_LATE 0x40000
+
+/* Metadata for received and transmitted frames */
+struct metadata {
+	/* Flag bits, as defined by macros starting with METADATA_.
+	 * Indicates which other fields are used or valid. */
+	uint32_t flags;
+	uint32_t mode; /* Modem-specific modulation and coding flags */
+	timestamp_t timestamp; /* Timestamp (ns) */
+	float power; /* Received signal strength or transmit power (dB?) */
+	float cfo; /* Frequency offset (Hz) */
+	float ber; /* Bit error rate of decoded frame */
+	float ser; /* Octet or symbol error rate of decoded frame */
+	/* Other modem- or coding-specific metadata */
+	float m0, m1, m2, m3, m4, m5, m6;
+	//float m7;
+	/* Length of the data field */
+	uint32_t len;
+};
+
+
+// Frame together with metadata
+struct frame {
+	struct metadata m; // Metadata
+	//uint32_t len; // Length of the data field
+	uint8_t data[]; // Data (can be bytes, bits, symbols or soft bits)
+};
+
+
 /* -----------------------------------------
  * Receive related interfaces and data types
  * ----------------------------------------- */
 
+#if 0
 /* Metadata for received frames.
  *
  * Should the RX frame metadata be a common struct defined here
@@ -79,6 +127,7 @@ struct rx_frame {
 	uint32_t len; // Length of the data field
 	uint8_t data[]; // Data (can be bytes, bits, symbols or soft bits)
 };
+#endif
 
 
 /* Interface to a frame decoder module */
@@ -93,7 +142,7 @@ struct decoder_code {
 	 * Input frame data is soft decision bits,
 	 * output frame data is decoded data bytes.
 	 * Return negative value if decoding failed. */
-	int   (*decode)  (void *, const struct rx_frame *in, struct rx_frame *out, size_t maxlen);
+	int   (*decode)  (void *, const struct frame *in, struct frame *out, size_t maxlen);
 };
 
 
@@ -110,7 +159,7 @@ struct rx_output_code {
 	int   (*set_callbacks) (void *, const struct decoder_code *, void *decoder_arg);
 
 	// Called by a receiver when a frame has been received
-	int   (*frame) (void *, const struct rx_frame *frame);
+	int   (*frame) (void *, const struct frame *frame);
 };
 
 
@@ -174,7 +223,7 @@ struct encoder_code {
 	 * Input is an array of data bytes,
 	 * output is an array of encoded symbols.
 	 * Return the number of symbols in the encoded frame. */
-	int   (*encode)  (void *, const struct tx_frame *in, struct tx_frame *out, size_t maxlen);
+	int   (*encode)  (void *, const struct frame *in, struct frame *out, size_t maxlen);
 };
 
 
@@ -230,9 +279,9 @@ struct transmitter_code {
 };
 
 
-/* ---------------------------------
- * General interfaces and data types
- * --------------------------------- */
+/* --------------------------------
+ * Common interfaces and data types
+ * -------------------------------- */
 
 /* Interface to an I/O implementation
  * which typically controls some SDR hardware.

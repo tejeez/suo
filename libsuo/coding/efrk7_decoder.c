@@ -1,3 +1,4 @@
+#if 0 // TODO
 #include "efrk7_decoder.h"
 #include "suo_macros.h"
 #include <string.h>
@@ -82,3 +83,4 @@ static int efrk7_decode(void *arg, const bit_t *pktb, size_t len, uint8_t *decod
 CONFIG_NONE()
 
 const struct decoder_code efrk7_decoder_code = { "efrk7_decoder", efrk7_init, efrk7_destroy, init_conf, set_conf, efrk7_decode };
+#endif

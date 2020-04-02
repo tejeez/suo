@@ -17,13 +17,13 @@ void *test_output_init(const void *conf)
 }
 
 
-static int test_output_frame(void *arg, const struct rx_frame *frame)
+static int test_output_frame(void *arg, const struct frame *frame)
 {
 	struct test_output *self = arg;
-	char decoded_buf[sizeof(struct rx_frame) + 0x200];
-	struct rx_frame *decoded = (struct rx_frame *)decoded_buf;
-	size_t i, nbits = frame->len;
-	const struct rx_metadata *metadata = &frame->m;
+	char decoded_buf[sizeof(struct frame) + 0x200];
+	struct frame *decoded = (struct frame *)decoded_buf;
+	size_t i, nbits = frame->m.len;
+	const struct metadata *metadata = &frame->m;
 	int ret;
 
 	for(i = 0; i < nbits; i++)
@@ -45,12 +45,10 @@ static int test_output_frame(void *arg, const struct rx_frame *frame)
 	} else {
 		printf("Decode failed (%d)\n", ret);
 	}
-	printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  OER: %E  Mode: %u\n\n",
-		(long long)metadata->timestamp,
-		(double)metadata->cfo, (double)metadata->cfod,
-		(double)metadata->rssi, (double)metadata->snr,
-		(double)metadata->ber, (double)metadata->oer,
-		metadata->mode);
+	printf("Timestamp: %lld ns   Mode: %3u  RSSI: %6.2f dB  CFO: %E Hz  BER: %E  SER: %E\n\n",
+		(long long)metadata->timestamp, metadata->mode,
+		(double)metadata->power, (double)metadata->cfo,
+		(double)metadata->ber, (double)metadata->ser);
 	return 0;
 }
 

@@ -35,7 +35,7 @@ struct burst_dpsk_receiver {
 	float clockest[OVERSAMP];
 
 	/* Buffers */
-	struct rx_frame frame;
+	struct frame frame;
 	/* Allocate space for flexible array member */
 	bit_t frame_buffer[FRAMELEN_MAX];
 };
@@ -90,9 +90,9 @@ static void output_frame(struct burst_dpsk_receiver *self, timestamp_t ts, unsig
 		self->frame.data[2*i]   = float_to_softbit(-cimagf(dp));
 		self->frame.data[2*i+1] = float_to_softbit(-crealf(dp));
 	}
-	self->frame.len = 2*i;
+	self->frame.m.len = 2*i;
 	//TODO: check array size somewhere
-	assert(self->frame.len <= FRAMELEN_MAX);
+	assert(self->frame.m.len <= FRAMELEN_MAX);
 	self->frame.m.mode = type;
 	self->frame.m.timestamp = ts;
 	self->output->frame(self->output_arg, &self->frame);

@@ -48,7 +48,7 @@ struct simple_receiver {
 	void *output_arg;
 
 	/* Buffers */
-	struct rx_frame frame;
+	struct frame frame;
 	/* Allocate space for flexible array member */
 	bit_t frame_buffer[FRAMELEN_MAX];
 };
@@ -140,7 +140,7 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 		self->frame.data[framepos] = bit ? 0xFF : 0;
 		framepos++;
 		if(framepos == framelen) {
-			self->frame.len = framelen;
+			self->frame.m.len = framelen;
 			self->output.frame(self->output_arg, &self->frame);
 			receiving_frame = 0;
 		}
@@ -165,7 +165,7 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 			/* Fill in some metadata at start of the frame */
 			self->frame.m.cfo = (nco_crcf_get_frequency(self->l_nco)
 				- self->freq_center ) / self->nco_1Hz;
-			self->frame.m.rssi = 10.0f * log10f(self->est_power);
+			self->frame.m.power = 10.0f * log10f(self->est_power);
 			self->frame.m.ber = (float)syncerrs; // not real BER :D
 		}
 	}

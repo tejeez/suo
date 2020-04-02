@@ -4,7 +4,7 @@ centerfreq 237000
 basic_decoder
 bypass 1
 -
-test_output
+zmq_output
 
 -
 psk_transmitter
@@ -13,7 +13,7 @@ centerfreq 237000
 basic_encoder
 bypass 1
 -
-test_input
+zmq_input
 
 -
 soapysdr_io

@@ -7,6 +7,7 @@
 #include <signal.h>
 
 #define PRINT_DIAGNOSTICS
+#define DECODER_THREAD // TODO: configuration flag for this
 
 // TODO: make these configurable
 #define BITS_MAXLEN 0x900
@@ -116,15 +117,13 @@ static int zmq_output_destroy(void *arg)
 
 static void *zmq_decoder_main(void *arg)
 {
-	#if 0
 	struct zmq_output *self = arg;
 
-	char decoded_buf[sizeof(struct rx_frame) + DECODED_MAXLEN];
-	struct rx_frame *decoded = (struct rx_frame *)decoded_buf;
-	ret = self->decoder.decode(self->decoder_arg, &frame, decoded, DECODED_MAXLEN);
+	char decoded_buf[sizeof(struct frame) + DECODED_MAXLEN];
+	struct frame *decoded = (struct frame *)decoded_buf;
 
-	struct rx_metadata metadata_;
-	struct rx_metadata *metadata = &metadata_;
+	struct metadata metadata_;
+	struct metadata *metadata = &metadata_;
 
 	// TODO: pass metadata to this thread
 	memset(metadata, 0, sizeof(*metadata));
@@ -133,44 +132,37 @@ static void *zmq_decoder_main(void *arg)
 	 * transmit buffer queue. */
 	while(self->running) {
 		int nread;
-
-		nread = zmq_recv(self->z_decr, input, sizeof(bit_t)*BITS_MAXLEN, 0);
+		zmq_msg_t input_msg;
+		zmq_msg_init(&input_msg);
+		nread = zmq_msg_recv(&input_msg, self->z_decr, 0);
 		if(nread >= 0) {
-			int nbits = nread / sizeof(bit_t);
-
-			int ndecoded = self->decoder.decode(self->decoder_arg,
-				input,
-				bits, nbits, decoded, DECODED_MAXLEN, metadata);
-			assert(ndecoded <= DECODED_MAXLEN);
-
+			int ndecoded = self->decoder.decode(self->decoder_arg, zmq_msg_data(&input_msg), decoded, DECODED_MAXLEN);
 			if(ndecoded >= 0) {
-				ZMQCHECK(zmq_send(self->z_rx_pub, decoded, ndecoded, 0));
+				ZMQCHECK(zmq_send(self->z_rx_pub, decoded, sizeof(struct frame) + ndecoded, 0));
 			} else {
 				/* Decode failed. TODO: send or save diagnostics somewhere */
 			}
 
 #ifdef PRINT_DIAGNOSTICS
 			printf("Decode: %d\n", ndecoded);
-			printf("Timestamp: %lld ns   CFO: %E Hz  CFOD: %E Hz  RSSI: %6.2f dB  SNR: %6.2f dB  BER: %E  OER: %E  Mode: %u\n\n",
+			printf("Timestamp: %lld ns   Mode: %u  CFO: %E Hz  RSSI: %6.2f dB\n\n",
 				(long long)metadata->timestamp,
-				(double)metadata->cfo, (double)metadata->cfod,
-				(double)metadata->rssi, (double)metadata->snr,
-				(double)metadata->ber, (double)metadata->oer,
-				metadata->mode);
+				metadata->mode,
+				(double)metadata->cfo, (double)metadata->power);
 #endif
 		} else {
 			print_fail_zmq("zmq_recv", nread);
 			goto fail;
 		}
+		zmq_msg_close(&input_msg);
 	}
 
 fail:
-#endif
 	return NULL;
 }
 
 
-static int zmq_output_frame(void *arg, const struct rx_frame *frame)
+static int zmq_output_frame(void *arg, const struct frame *frame)
 {
 	struct zmq_output *self = arg;
 
@@ -178,9 +170,9 @@ static int zmq_output_frame(void *arg, const struct rx_frame *frame)
 	 * decoder runs out of CPU time and ZMQ buffer fills up.
 	 * Frames are just discarded with a warning message in the case. */
 #ifdef DECODER_THREAD // TODO: make it a configuration flag
-	ZMQCHECK(zmq_send(self->z_decw, frame, sizeof(struct rx_frame) + frame->len, ZMQ_DONTWAIT));
+	ZMQCHECK(zmq_send(self->z_decw, frame, sizeof(struct frame) + frame->m.len, ZMQ_DONTWAIT));
 #else
-	ZMQCHECK(zmq_send(self->z_rx_pub, frame, sizeof(struct rx_frame) + frame->len, ZMQ_DONTWAIT));
+	ZMQCHECK(zmq_send(self->z_rx_pub, frame, sizeof(struct frame) + frame->m.len, ZMQ_DONTWAIT));
 #endif
 	return 0;
 fail:

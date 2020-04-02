@@ -17,13 +17,14 @@ def hard_decision(data):
 
 while True:
 	rxframe = rx.recv()
-	metadata = struct.unpack('IIQffffffIIIIII', rxframe[0:64])
-	rx_data = rxframe[40:]
+	metadata = struct.unpack('IIQffffffffffff', rxframe[0:64])
+	rx_data = rxframe[64:]
 	rx_timestamp = metadata[2]
 
-	print(rx_timestamp, rx_data)
-	tx_data = hard_decision(rx_data[12:486])
+	#print(rx_timestamp, rx_data)
+	tx_data = hard_decision(rx_data[12:484])
 	tx_timestamp = rx_timestamp + 10000000000
-	print(tx_timestamp, tx_data)
+	#print(tx_timestamp, tx_data)
+	print(tx_timestamp, ' '.join(['o1'[tx_data[i]] + 'o1'[tx_data[i+1]] for i in range(0, len(tx_data), 2)]))
 
 	tx.send(struct.pack('IIQffIIQ', 2, 0, tx_timestamp, 0, 1, 0, 0, len(tx_data)) + tx_data)
