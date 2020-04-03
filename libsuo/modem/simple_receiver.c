@@ -187,7 +187,7 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 	/* Allocate small buffers from stack */
 	sample_t samples2[self->resampint];
 
-	self->frame.m.timestamp = timestamp;
+	self->frame.m.time = timestamp;
 	/* TODO: increment timestamp in loop */
 
 	size_t si;

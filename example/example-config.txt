@@ -5,7 +5,6 @@ symbolrate 10000
 basic_decoder
 -
 zmq_output
-# Use ZeroMQ with default settings to output frames
 -
 simple_transmitter
 symbolrate 10000

@@ -50,21 +50,22 @@ struct any_code {
 };
 
 
-#define METADATA_FLAGS 1
-#define METADATA_MODE 2
-#define METADATA_TIMESTAMP 4
-#define METADATA_POWER 8
-#define METADATA_CFO 0x10
-#define METADATA_BER 0x20
-#define METADATA_SER 0x40
-#define METADATA_0 0x80
-#define METADATA_1 0x100
-#define METADATA_2 0x200
-#define METADATA_3 0x400
-#define METADATA_4 0x800
-#define METADATA_5 0x1000
-#define METADATA_6 0x2000
-#define METADATA_7 0x4000
+/* Flags to indicate that a metadata field is used */
+#define METADATA_ID 1
+#define METADATA_FLAGS 2
+#define METADATA_TIME 4
+#define METADATA_MODE 0x10
+#define METADATA_POWER 0x20
+#define METADATA_CFO 0x40
+#define METADATA_BER 0x80
+#define METADATA_SER 0x100
+#define METADATA_0 0x200
+#define METADATA_1 0x400
+#define METADATA_2 0x800
+#define METADATA_3 0x1000
+#define METADATA_4 0x2000
+#define METADATA_5 0x4000
+#define METADATA_LEN 0x8000
 
 /* Flag to prevent transmission of a frame if it's too late,
  * i.e. if the timestamp is already in the past */
@@ -72,18 +73,22 @@ struct any_code {
 
 /* Metadata for received and transmitted frames */
 struct metadata {
+	/* Arbitrary identifier. Possible uses for it:
+	 * - As a topic over a ZeroMQ Pub-Sub socket
+	 * - Identifying a receiver or demodulator, in case frames from multiple
+	 *   receivers are sent to a single protocol stack or decoder */
+	uint32_t id;
 	/* Flag bits, as defined by macros starting with METADATA_.
 	 * Indicates which other fields are used or valid. */
 	uint32_t flags;
+	timestamp_t time; /* Timestamp (ns) */
 	uint32_t mode; /* Modem-specific modulation and coding flags */
-	timestamp_t timestamp; /* Timestamp (ns) */
 	float power; /* Received signal strength or transmit power (dB?) */
 	float cfo; /* Frequency offset (Hz) */
 	float ber; /* Bit error rate of decoded frame */
 	float ser; /* Octet or symbol error rate of decoded frame */
 	/* Other modem- or coding-specific metadata */
-	float m0, m1, m2, m3, m4, m5, m6;
-	//float m7;
+	float extra[6];
 	/* Length of the data field */
 	uint32_t len;
 };
@@ -100,35 +105,6 @@ struct frame {
 /* -----------------------------------------
  * Receive related interfaces and data types
  * ----------------------------------------- */
-
-#if 0
-/* Metadata for received frames.
- *
- * Should the RX frame metadata be a common struct defined here
- * or should it be modem-specific? A common definition makes it easier
- * to interface to decoders and protocol stacks.
- * For now, there are extra fields reserved for modem-specific metadata. */
-struct rx_metadata {
-	uint32_t fields; /* Bitmap to indicate which fields are valid */
-	uint32_t mode; /* Modem-specific modulation and coding flags */
-	timestamp_t timestamp;
-	float cfo;  /* Frequency offset at start of the frame (Hz) */
-	float cfod; /* Drift of CFO during the frame (Hz) */
-	float rssi; /* Received signal strength. Unit TBD */
-	float snr;  /* Signal-to-noise ratio. Definition TBD */
-	float ber;  /* Bit error rate */
-	float oer;  /* Octet error rate */
-	uint32_t reserved[6];
-};
-
-// RX frame together with metadata
-struct rx_frame {
-	struct rx_metadata m; // Metadata
-	uint32_t len; // Length of the data field
-	uint8_t data[]; // Data (can be bytes, bits, symbols or soft bits)
-};
-#endif
-
 
 /* Interface to a frame decoder module */
 struct decoder_code {
@@ -186,30 +162,6 @@ struct receiver_code {
  * Transmit related interfaces and data types
  * ------------------------------------------ */
 
-// Flag to indicate that the timestamp field is used
-#define TX_FLAG_HAS_TIME 2
-
-/* Flag to prevent transmission of a frame if it's too late,
- * i.e. if the timestamp is already in the past */
-#define TX_FLAG_NO_LATE 4
-
-// Metadata for frames to be transmitted
-struct tx_metadata {
-	uint32_t flags;
-	uint32_t mode; /* Modem-specific modulation and coding flags */
-	timestamp_t timestamp; /* Time when the frame should be transmitted */
-	float cfo; /* Frequency offset */
-	float amp; /* Amplitude */
-	uint32_t reserved[2];
-};
-
-// TX frame together with metadata
-struct tx_frame {
-	struct tx_metadata m; // Metadata
-	uint64_t len; // Length of the data field
-	uint8_t data[]; // Data (can be bytes, bits, symbols or soft bits)
-};
-
 
 /* Interface to a frame encoder module */
 struct encoder_code {
@@ -240,7 +192,7 @@ struct tx_input_code {
 	int   (*set_callbacks) (void *, const struct encoder_code *, void *encoder_arg);
 
 	// Called by a transmitter to request the next frame to be transmitted
-	int   (*get_frame) (void *, struct tx_frame *frame, size_t maxlen, timestamp_t timenow);
+	int   (*get_frame) (void *, struct frame *frame, size_t maxlen, timestamp_t timenow);
 };
 
 

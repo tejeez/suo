@@ -17,7 +17,7 @@ def hard_decision(data):
 
 while True:
 	rxframe = rx.recv()
-	metadata = struct.unpack('IIQffffffffffff', rxframe[0:64])
+	metadata = struct.unpack('IIQIffffffffffI', rxframe[0:64])
 	rx_data = rxframe[64:]
 	rx_timestamp = metadata[2]
 
@@ -27,4 +27,4 @@ while True:
 	#print(tx_timestamp, tx_data)
 	print(tx_timestamp, ' '.join(['o1'[tx_data[i]] + 'o1'[tx_data[i+1]] for i in range(0, len(tx_data), 2)]))
 
-	tx.send(struct.pack('IIQffIIQ', 2, 0, tx_timestamp, 0, 1, 0, 0, len(tx_data)) + tx_data)
+	tx.send(struct.pack('IIQIffffffffffI', 0, 4, tx_timestamp, 0, 0,0,0,0, 0,0,0,0,0,0, len(tx_data)) + tx_data)

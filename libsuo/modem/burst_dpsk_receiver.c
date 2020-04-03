@@ -94,7 +94,7 @@ static void output_frame(struct burst_dpsk_receiver *self, timestamp_t ts, unsig
 	//TODO: check array size somewhere
 	assert(self->frame.m.len <= FRAMELEN_MAX);
 	self->frame.m.mode = type;
-	self->frame.m.timestamp = ts;
+	self->frame.m.time = ts;
 	self->output->frame(self->output_arg, &self->frame);
 }
 

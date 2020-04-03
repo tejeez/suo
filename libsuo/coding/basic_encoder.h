@@ -5,7 +5,7 @@
 struct basic_encoder_conf {
 	uint64_t syncword;
 	unsigned synclen, preamblelen;
-	bool lsb_first, rs;
+	bool lsb_first, bypass, rs;
 };
 
 extern const struct basic_encoder_conf basic_encoder_defaults;

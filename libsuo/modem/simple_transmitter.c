@@ -27,7 +27,7 @@ struct simple_transmitter {
 	void *input_arg;
 
 	/* Buffers */
-	struct tx_frame frame;
+	struct frame frame;
 	/* Allocate space for flexible array member */
 	bit_t frame_buffer[FRAMELEN_MAX];
 };

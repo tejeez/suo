@@ -6,11 +6,11 @@
 #include <pthread.h>
 #include <signal.h>
 
-#define PRINT_DIAGNOSTICS
 
 // TODO: make these configurable
-#define BITS_MAXLEN 0x900
-#define DECODED_MAXLEN 0x200
+#define ENCODER_THREAD
+#define PRINT_DIAGNOSTICS
+#define ENCODED_MAXLEN 0x900
 
 /* One global ZeroMQ context, initialized only once */
 extern void *zmq;
@@ -19,10 +19,13 @@ static void print_fail_zmq(const char *function, int ret)
 {
 	fprintf(stderr, "%s failed (%d): %s\n", function, ret, zmq_strerror(errno));
 }
-#define ZMQCHECK(function) { int ret = (function); if(ret < 0) { print_fail_zmq(#function, ret); goto fail; } }
+#define ZMQCHECK(function) do { int ret = (function); if(ret < 0) { print_fail_zmq(#function, ret); goto fail; } } while(0)
 
 
 struct zmq_input {
+	/* Configuration */
+	uint32_t flags;
+
 	/* State */
 	volatile bool running;
 
@@ -46,9 +49,9 @@ static void *zmq_encoder_main(void*);
 static void *zmq_input_init(const void *confv)
 {
 	const struct zmq_tx_input_conf *conf = confv;
-	struct zmq_input *self = malloc(sizeof(*self));
+	struct zmq_input *self = calloc(1, sizeof(*self));
 	if(self == NULL) return NULL;
-	memset(self, 0, sizeof(*self));
+	self->flags = conf->flags;
 	
 	/* If this is called from another thread than zmq_output_init,
 	 * a race condition is possible where two contexts are created.
@@ -57,7 +60,10 @@ static void *zmq_input_init(const void *confv)
 		zmq = zmq_ctx_new();
 
 	self->z_tx_sub = zmq_socket(zmq, ZMQ_SUB);
-	ZMQCHECK(zmq_bind(self->z_tx_sub, conf->address));
+	if (self->flags & ZMQIO_BIND)
+		ZMQCHECK(zmq_bind(self->z_tx_sub, conf->address));
+	else
+		ZMQCHECK(zmq_connect(self->z_tx_sub, conf->address));
 	ZMQCHECK(zmq_setsockopt(self->z_tx_sub, ZMQ_SUBSCRIBE, "", 0));
 
 #ifdef ENCODER_THREAD // TODO: make it a configuration flag
@@ -102,25 +108,25 @@ static int zmq_input_set_callbacks(void *arg, const struct encoder_code *encoder
 
 static void *zmq_encoder_main(void *arg)
 {
-	#if 0
 	struct zmq_input *self = arg;
 
-	bit_t bits[BITS_MAXLEN];
-	uint8_t decoded[DECODED_MAXLEN];
+	char encoded_buf[sizeof(struct frame) + ENCODED_MAXLEN];
+	struct frame *encoded = (struct frame *)encoded_buf;
 
 	/* Read frames from the SUB socket, encode them and put them
 	 * in the transmit buffer queue. */
 	while(self->running) {
 		int nread, nbits;
-
-		nread = zmq_recv(self->z_tx_sub, decoded, DECODED_MAXLEN, 0);
+		zmq_msg_t input_msg;
+		zmq_msg_init(&input_msg);
+		nread = zmq_msg_recv(&input_msg, self->z_tx_sub, 0);
 		if(nread >= 0) {
 			nbits = self->encoder.encode(self->encoder_arg,
-				bits, BITS_MAXLEN, decoded, nread);
-			assert(nbits <= BITS_MAXLEN);
+				zmq_msg_data(&input_msg), encoded, ENCODED_MAXLEN);
+			assert(nbits <= ENCODED_MAXLEN);
 
 			if(nbits >= 0) {
-				ZMQCHECK(zmq_send(self->z_txbuf_w, bits, sizeof(bit_t)*nbits, 0));
+				ZMQCHECK(zmq_send(self->z_txbuf_w, encoded, sizeof(struct frame) + nbits, 0));
 			} else {
 				/* Encode failed, should not happen */
 			}
@@ -128,15 +134,15 @@ static void *zmq_encoder_main(void *arg)
 			print_fail_zmq("zmq_recv", nread);
 			goto fail;
 		}
+		zmq_msg_close(&input_msg);
 	}
 
 fail:
-#endif
 	return NULL;
 }
 
 
-static int zmq_input_get_frame(void *arg, struct tx_frame *frame, size_t maxlen, timestamp_t timenow)
+static int zmq_input_get_frame(void *arg, struct frame *frame, size_t maxlen, timestamp_t timenow)
 {
 	int nread;
 	struct zmq_input *self = arg;
@@ -151,8 +157,8 @@ static int zmq_input_get_frame(void *arg, struct tx_frame *frame, size_t maxlen,
 	if (nread <= 0) {
 		/* No frame in queue */
 		return -1;
-	} else if((size_t)nread == sizeof(*frame) + frame->len) {
-		return frame->len;
+	} else if((size_t)nread == sizeof(*frame) + frame->m.len) {
+		return frame->m.len;
 	} else {
 		fprintf(stderr, "Warning: too long frame?\n");
 		return -1;
@@ -176,11 +182,13 @@ static int zmq_input_destroy(void *arg)
 
 
 const struct zmq_tx_input_conf zmq_tx_input_defaults = {
-	.address = "tcp://*:43301"
+	.address = "tcp://*:43301",
+	.flags = ZMQIO_BIND | ZMQIO_METADATA | ZMQIO_THREAD
 };
 
 CONFIG_BEGIN(zmq_tx_input)
 CONFIG_C(address)
+CONFIG_I(flags)
 CONFIG_END()
 
 const struct tx_input_code zmq_tx_input_code = { "zmq_input", zmq_input_init, zmq_input_destroy, init_conf, set_conf, zmq_input_set_callbacks, zmq_input_get_frame };

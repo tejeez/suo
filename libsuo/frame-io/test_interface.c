@@ -46,7 +46,7 @@ static int test_output_frame(void *arg, const struct frame *frame)
 		printf("Decode failed (%d)\n", ret);
 	}
 	printf("Timestamp: %lld ns   Mode: %3u  RSSI: %6.2f dB  CFO: %E Hz  BER: %E  SER: %E\n\n",
-		(long long)metadata->timestamp, metadata->mode,
+		(long long)metadata->time, metadata->mode,
 		(double)metadata->power, (double)metadata->cfo,
 		(double)metadata->ber, (double)metadata->ser);
 	return 0;
@@ -108,14 +108,14 @@ int test_input_set_callbacks(void *arg, const struct encoder_code *encoder, void
 }
 
 
-int test_input_get_frame(void *arg, struct tx_frame *frame, size_t maxlen, timestamp_t timenow)
+int test_input_get_frame(void *arg, struct frame *frame, size_t maxlen, timestamp_t timenow)
 {
 	struct test_input *self = arg;
 	(void)self;
 	const timestamp_t frame_interval = 20000000;
 	if(timenow % 400000000LL < 100000000LL) {
 		// round up to next multiple of frame_interval
-		frame->m.timestamp = (timenow + frame_interval) / frame_interval * frame_interval;
+		frame->m.time = (timenow + frame_interval) / frame_interval * frame_interval;
 
 #if 0
 		const uint8_t packet[30] = "testidataa";
@@ -129,7 +129,7 @@ int test_input_get_frame(void *arg, struct tx_frame *frame, size_t maxlen, times
 			1,1, 0,1, 0,0, 0,0, 1,1, 1,0, 1,0, 0,1, 1,1, 0,1, 0,0,
 			0,0, 0,0
 		}, TESTLEN);
-		frame->len = TESTLEN;
+		frame->m.len = TESTLEN;
 		return TESTLEN;
 	}
 	return -1;

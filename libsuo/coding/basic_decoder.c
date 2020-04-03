@@ -73,7 +73,6 @@ static int bits_to_bytes(const softbit_t *bits, size_t nbits, uint8_t *bytes, si
 
 
 static int decode(void *arg, const struct frame *in, struct frame *out, size_t maxlen)
-//static int decode(void *arg, const softbit_t *bits, size_t nbits, uint8_t *decoded, size_t max_decoded_len, struct rx_metadata *metadata)
 {
 	struct basic_decoder *self = arg;
 	out->m = in->m; // Copy metadata
@@ -81,6 +80,7 @@ static int decode(void *arg, const struct frame *in, struct frame *out, size_t m
 		size_t len = in->m.len;
 		if (len > maxlen) len = maxlen;
 		memcpy(out->data, in->data, len);
+		out->m.len = len;
 		return len;
 	} else if(self->l_fec != NULL) {
 		/* Reed-Solomon decode */

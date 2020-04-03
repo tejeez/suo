@@ -20,6 +20,7 @@ const struct basic_encoder_conf basic_encoder_defaults = {
 	.synclen = 32,
 	.lsb_first = 0,
 	.rs = 0,
+	.bypass = 0
 };
 
 
@@ -81,9 +82,17 @@ static size_t word_to_bits(bit_t *bits, size_t nbits, uint64_t word)
 }
 
 
-static int encode(void *arg, const struct frame *in, struct frame *out, size_t max_nbits)
+static int encode(void *arg, const struct frame *in, struct frame *out, size_t maxlen)
 {
 	struct basic_encoder *self = arg;
+	out->m = in->m; // Copy metadata
+	if (self->conf.bypass) {
+		size_t len = in->m.len;
+		if (len > maxlen) len = maxlen;
+		memcpy(out->data, in->data, len);
+		out->m.len = len;
+		return len;
+	}
 	size_t nbytes = in->m.len;
 
 	size_t nenc = fec_get_enc_msg_length(self->l_scheme, nbytes);
@@ -93,7 +102,7 @@ static int encode(void *arg, const struct frame *in, struct frame *out, size_t m
 	size_t payload_nbits = nenc * 8;
 	size_t total_nbits = self->conf.preamblelen + self->conf.synclen + payload_nbits;
 
-	if (total_nbits > max_nbits)
+	if (total_nbits > maxlen)
 		return -1; // too small output buffer, can't encode
 
 	uint8_t *bitp = out->data;
@@ -107,7 +116,6 @@ static int encode(void *arg, const struct frame *in, struct frame *out, size_t m
 	bitp += bytes_to_bits(bitp, payload_nbits, self->buf, self->conf.lsb_first);
 
 	assert(bitp == out->data + total_nbits);
-	out->m = in->m; // Copy metadata
 	out->m.len = total_nbits;
 	return total_nbits;
 }
@@ -118,6 +126,7 @@ CONFIG_I(syncword)
 CONFIG_I(synclen)
 CONFIG_I(preamblelen)
 CONFIG_I(lsb_first)
+CONFIG_I(bypass)
 CONFIG_I(rs)
 CONFIG_END()
 

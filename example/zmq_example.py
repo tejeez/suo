@@ -2,13 +2,11 @@
 # A simple "chat" program to demonstrate the use of ZeroMQ interface
 # with the modem application.
 # Since the modem currently supports only fixed-length frames,
-# this program uses the first byte of a frame to indicate the
-# length of the payload and pads the rest with a constant byte.
+# they are padded with spaces and stripped after receiving.
 
-FRAME_LENGTH = 223
-PAD_BYTE = b'.'
+FRAME_LENGTH = 100
 
-import zmq, threading
+import zmq, threading, struct
 ctx = zmq.Context()
 
 rx = ctx.socket(zmq.SUB)
@@ -20,23 +18,26 @@ tx.connect("tcp://localhost:43301")
 
 def rx_loop():
 	while True:
-		rxframe = rx.recv()
-		print(rxframe[1 : 1+rxframe[0]].decode('utf-8','ignore'))
+		rxmsg = rx.recv()
+		# Parse metadata from the message
+		metadata = struct.unpack('IIQIffffffffffI', rxmsg[0:64])
+		timestamp = metadata[2]
+		data = rxmsg[64:]
+		# Print it with a timestamp
+		print("\033[034m%10.2f s: \033[033m%s\033[0m" % (1e-9 * timestamp, data.decode('utf-8','ignore').strip()))
 
 rxthread = threading.Thread(target=rx_loop, daemon=True)
 rxthread.start()
 
 while True:
 	txtext = input()
-	# Reserve space for the length byte
 	txpayload = txtext.encode('utf-8','ignore')
 
 	# Truncate a too long payload, pad a too short one.
-	# Also add the length byte.
-	if len(txpayload) >= FRAME_LENGTH-1:
-		txframe = bytes([FRAME_LENGTH-1]) + txpayload[0:FRAME_LENGTH-1]
+	if len(txpayload) >= FRAME_LENGTH:
+		txframe = txpayload[0:FRAME_LENGTH]
 	else:
-		txframe = bytes([len(txpayload)]) + txpayload + \
-			PAD_BYTE * (FRAME_LENGTH-1-len(txpayload))
+		txframe = txpayload + b' ' * (FRAME_LENGTH-len(txpayload))
 
-	tx.send(txframe)
+	# Add metadata and send it
+	tx.send(struct.pack('IIQIffffffffffI', 0, 0, 0, 0, 0,0,0,0, 0,0,0,0,0,0, len(txframe)) + txframe)

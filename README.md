@@ -29,9 +29,7 @@ the signals from some other program.
 
 Output of decoded frames by ZeroMQ is supported, so these modems can
 easily be interfaced to higher protocol layers running in a separate
-process. It does not yet support passing metadata (such as timestamps)
-to them, which may currently limit the possibilities to implement
-TDD-based protocols, but this will be added in future versions.
+process. ZeroMQ messages are prefixed with a frame metadata struct.
 
 
 ## Modems implemented at the moment
@@ -40,6 +38,14 @@ Currently, there is `simple_receiver` and `simple_transmitter`,
 which are primarily made for FSK packet waveforms similar to
 those used by typical small radio chips. It supports the common
 preamble-syncword-payload format with 2-GFSK modulation.
+It's not a very high performance modem, but it's already useful
+and also helps test other parts of the software.
+
+There's also a PI/4 DQPSK burst modem primarily made for TETRA
+experimentation, but it could grow to a more general phase-shift
+keying modem as well.
+
+Other, better modems are being developed.
 
 
 ## Compiling it

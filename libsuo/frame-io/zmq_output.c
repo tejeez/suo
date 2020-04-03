@@ -20,10 +20,13 @@ static void print_fail_zmq(const char *function, int ret)
 {
 	fprintf(stderr, "%s failed (%d): %s\n", function, ret, zmq_strerror(errno));
 }
-#define ZMQCHECK(function) { int ret = (function); if(ret < 0) { print_fail_zmq(#function, ret); goto fail; } }
+#define ZMQCHECK(function) do { int ret = (function); if(ret < 0) { print_fail_zmq(#function, ret); goto fail; } } while(0)
 
 
 struct zmq_output {
+	/* Configuration */
+	uint32_t flags;
+
 	/* State */
 	volatile bool running;
 
@@ -45,15 +48,18 @@ static void *zmq_decoder_main(void*);
 static void *zmq_output_init(const void *confv)
 {
 	const struct zmq_rx_output_conf *conf = confv;
-	struct zmq_output *self = malloc(sizeof(*self));
+	struct zmq_output *self = calloc(1, sizeof(*self));
 	if(self == NULL) return NULL;
-	memset(self, 0, sizeof(*self));
+	self->flags = conf->flags;
 
 	if(zmq == NULL)
 		zmq = zmq_ctx_new();
 
 	self->z_rx_pub = zmq_socket(zmq, ZMQ_PUB);
-	ZMQCHECK(zmq_bind(self->z_rx_pub, conf->address));
+	if (self->flags & ZMQIO_BIND)
+		ZMQCHECK(zmq_bind(self->z_rx_pub, conf->address));
+	else
+		ZMQCHECK(zmq_connect(self->z_rx_pub, conf->address));
 
 #ifdef DECODER_THREAD // TODO: make it a configuration flag
 	/* Decoder runs in a separate thread.
@@ -146,7 +152,7 @@ static void *zmq_decoder_main(void *arg)
 #ifdef PRINT_DIAGNOSTICS
 			printf("Decode: %d\n", ndecoded);
 			printf("Timestamp: %lld ns   Mode: %u  CFO: %E Hz  RSSI: %6.2f dB\n\n",
-				(long long)metadata->timestamp,
+				(long long)metadata->time,
 				metadata->mode,
 				(double)metadata->cfo, (double)metadata->power);
 #endif
@@ -181,11 +187,13 @@ fail:
 
 
 const struct zmq_rx_output_conf zmq_rx_output_defaults = {
-	.address = "tcp://*:43300"
+	.address = "tcp://*:43300",
+	.flags = ZMQIO_BIND | ZMQIO_METADATA | ZMQIO_THREAD
 };
 
 CONFIG_BEGIN(zmq_rx_output)
 CONFIG_C(address)
+CONFIG_I(flags)
 CONFIG_END()
 
 const struct rx_output_code zmq_rx_output_code = { "zmq_output", zmq_output_init, zmq_output_destroy, init_conf, set_conf, zmq_output_set_callbacks, zmq_output_frame };

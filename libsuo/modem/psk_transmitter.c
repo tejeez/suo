@@ -34,7 +34,7 @@ struct psk_transmitter {
 	unsigned pskph; // DPSK phase accumulator
 
 	/* Buffers */
-	struct tx_frame frame;
+	struct frame frame;
 	/* Allocate space for flexible array member */
 	bit_t frame_buffer[FRAMELEN_MAX];
 };
@@ -61,7 +61,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			&self->frame, FRAMELEN_MAX, timestamp);
 		if (fl >= 0) {
 			self->state = FRAME_WAIT;
-			//fprintf(stderr, "Got new frame %lu\n", self->frame.len);
+			//fprintf(stderr, "Got new frame %u\n", self->frame.m.len);
 		}
 	}
 
@@ -70,11 +70,11 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 		if (self->state == FRAME_WAIT) {
 			/* Frame is waiting to be transmitted */
 			timestamp_t timenow = timestamp + (timestamp_t)(sample_ns * i);
-			int64_t timediff = timenow - self->frame.m.timestamp;
+			int64_t timediff = timenow - self->frame.m.time;
 			if (timediff >= 0) {
 				self->state = FRAME_TX;
 				symph = 0;
-				fprintf(stderr, "Starting transmission %lu\n", self->frame.len);
+				fprintf(stderr, "Starting transmission %u\n", self->frame.m.len);
 			}
 		}
 		if (self->state == FRAME_TX && symph == 0) {
@@ -94,7 +94,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			s = (cosf(pi_4f * pskph) + I*sinf(pi_4f * pskph)) * amp;
 
 			framepos += 2;
-			if (framepos+1 >= self->frame.len) {
+			if (framepos+1 >= self->frame.m.len) {
 				framepos = 0;
 				self->state = FRAME_NONE;
 				int fl = self->input->get_frame(self->input_arg,
@@ -102,7 +102,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 					timestamp + (timestamp_t)(sample_ns * i));
 				if (fl >= 0)
 					self->state = FRAME_WAIT;
-				//fprintf(stderr, "Got next frame %lu\n", self->frame.len);
+				//fprintf(stderr, "Got next frame %u\n", self->frame.m.len);
 			}
 		}
 		firfilt_crcf_push(self->l_mf, s);
@@ -131,7 +131,7 @@ static void *init(const void *conf_v)
 
 	// sample rate for the modulator
 	float fs_mod = self->c.symbolrate * OVERSAMP;
-	self->sample_ns = 1.0f / fs_mod;
+	self->sample_ns = 1.0e9f / fs_mod;
 	self->duc = suo_ddc_init(fs_mod, self->c.samplerate, self->c.centerfreq, 1);
 
 	// design the matched filter
