@@ -56,3 +56,8 @@ Other, better modems are being developed.
 - Install driver for your SDR device
 - Run make under libsuo directory
 - Run make under suoapp directory
+
+
+## Licensing
+
+Code in this repository is under the MIT license.
