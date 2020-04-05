@@ -128,12 +128,6 @@ static void *zmq_decoder_main(void *arg)
 	char decoded_buf[sizeof(struct frame) + DECODED_MAXLEN];
 	struct frame *decoded = (struct frame *)decoded_buf;
 
-	struct metadata metadata_;
-	struct metadata *metadata = &metadata_;
-
-	// TODO: pass metadata to this thread
-	memset(metadata, 0, sizeof(*metadata));
-
 	/* Read frames from the receiver-to-decoder queue
 	 * transmit buffer queue. */
 	while(self->running) {
@@ -150,8 +144,9 @@ static void *zmq_decoder_main(void *arg)
 			}
 
 #ifdef PRINT_DIAGNOSTICS
-			printf("Decode: %d\n", ndecoded);
-			printf("Timestamp: %lld ns   Mode: %u  CFO: %E Hz  RSSI: %6.2f dB\n\n",
+		const struct metadata *metadata = &decoded->m;
+			printf("%d  Timestamp: %lld ns   Mode: %u  CFO: %E Hz  RSSI: %6.2f dB\n\n",
+				ndecoded,
 				(long long)metadata->time,
 				metadata->mode,
 				(double)metadata->cfo, (double)metadata->power);

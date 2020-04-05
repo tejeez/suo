@@ -61,7 +61,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			&self->frame, FRAMELEN_MAX, timestamp);
 		if (fl >= 0) {
 			self->state = FRAME_WAIT;
-			//fprintf(stderr, "Got new frame %u\n", self->frame.m.len);
+			//fprintf(stderr, "New frame at %lu\n", self->frame.m.time);
 		}
 	}
 
@@ -74,7 +74,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			if (timediff >= 0) {
 				self->state = FRAME_TX;
 				symph = 0;
-				fprintf(stderr, "Starting transmission %u\n", self->frame.m.len);
+				fprintf(stderr, "%lu: Starting transmission\n", self->frame.m.time);
 			}
 		}
 		if (self->state == FRAME_TX && symph == 0) {
@@ -102,7 +102,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 					timestamp + (timestamp_t)(sample_ns * i));
 				if (fl >= 0)
 					self->state = FRAME_WAIT;
-				//fprintf(stderr, "Got next frame %u\n", self->frame.m.len);
+				//fprintf(stderr, "Next frame at %lu\n", self->frame.m.time);
 			}
 		}
 		firfilt_crcf_push(self->l_mf, s);
@@ -113,11 +113,11 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	self->pskph = pskph;
 	self->framepos = framepos;
 
-	size_t retlen = suo_duc_execute(self->duc, buf, buflen, samples);
-	assert(retlen <= maxsamples);
+	tx_return_t retv = suo_duc_execute(self->duc, buf, buflen, samples);
+	assert((size_t)retv.len <= maxsamples);
+	//fprintf(stderr, "(%d %d %d) ", retv.len, retv.begin, retv.end);
 
-	/* TODO: find begin and end of burst */
-	return (tx_return_t){ .len = retlen, .begin = 0, .end = retlen };
+	return retv;
 }
 
 

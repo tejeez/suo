@@ -224,10 +224,28 @@ static int execute(void *arg)
 				tx_last_end_time = tx_from_time + (timestamp_t)(sample_ns * ntx.len);
 			}
 
-			if(ntx.end > ntx.begin) {
+			if (tx_burst_going && ntx.begin > 0) {
+				/* If end of burst flag wasn't sent in last round,
+				 * send it now together with one dummy sample.
+				 * One sample is sent because trying to send
+				 * zero samples gave a timeout error. */
+				if(tx_burst_going) {
+					txbuf[0] = 0;
+					const void *txbuffs[] = { txbuf };
+					flags = SOAPY_SDR_HAS_TIME | SOAPY_SDR_END_BURST;
+					ret = SoapySDRDevice_writeStream(sdr, txstream,
+						txbuffs, 1, &flags,
+						tx_from_time, timeout_us);
+					if(ret <= 0)
+						soapy_fail("SoapySDRDevice_writeStream (end of burst)", ret);
+					tx_burst_going = 0;
+				}
+			}
+
+			if (ntx.end > ntx.begin) {
 				flags = SOAPY_SDR_HAS_TIME;
 				// If ntx.end does not point to end of the buffer, a burst has ended
-				if(ntx.end < ntx.len) {
+				if (ntx.end < ntx.len) {
 					flags |= SOAPY_SDR_END_BURST;
 					tx_burst_going = 0;
 				} else {
@@ -243,21 +261,6 @@ static int execute(void *arg)
 				if(ret <= 0)
 					soapy_fail("SoapySDRDevice_writeStream", ret);
 			} else {
-				/* Nothing to transmit.
-				 * If end of burst flag wasn't sent in last round,
-				 * send it now together with one dummy sample.
-				 * One sample is sent because trying to send
-				 * zero samples gave a timeout error. */
-				if(tx_burst_going) {
-					txbuf[0] = 0;
-					const void *txbuffs[] = { txbuf };
-					flags = SOAPY_SDR_HAS_TIME | SOAPY_SDR_END_BURST;
-					ret = SoapySDRDevice_writeStream(sdr, txstream,
-						txbuffs, 1, &flags,
-						tx_from_time, timeout_us);
-					if(ret <= 0)
-						soapy_fail("SoapySDRDevice_writeStream (end of burst)", ret);
-				}
 				tx_burst_going = 0;
 			}
 		}

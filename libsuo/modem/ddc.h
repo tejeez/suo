@@ -10,6 +10,6 @@ struct suo_ddc *suo_ddc_init(float fs_in, float fs_out, float cf, unsigned flags
 size_t suo_ddc_out_size(struct suo_ddc *ddc, size_t inlen);
 size_t suo_ddc_execute(struct suo_ddc *self, const sample_t *in, size_t inlen, sample_t *out, timestamp_t *timestamp);
 size_t suo_duc_in_size(struct suo_ddc *ddc, size_t outlen, timestamp_t *timestamp);
-size_t suo_duc_execute(struct suo_ddc *self, const sample_t *in, size_t inlen, sample_t *out);
+tx_return_t suo_duc_execute(struct suo_ddc *self, const sample_t *in, size_t inlen, sample_t *out);
 
 #endif
