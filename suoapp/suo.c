@@ -27,6 +27,10 @@ int main(int argc, char *argv[])
 
 	configure(&suo1, argc, argv);
 
-	fprintf(stderr, "Starting main loop\n");
-	return -suo1.signal_io->execute(suo1.signal_io_arg);
+	if (suo1.signal_io != NULL) {
+		fprintf(stderr, "Starting main loop\n");
+		return -suo1.signal_io->execute(suo1.signal_io_arg);
+	} else {
+		return 1;
+	}
 }

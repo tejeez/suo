@@ -46,7 +46,7 @@ struct any_code {
 	void *(*init_conf) (void);
 
 	// Set a configuration parameter
-	int   (*set_conf)  (void *conf, char *parameter, char *value);
+	int   (*set_conf)  (void *conf, const char *parameter, const char *value);
 };
 
 
@@ -112,7 +112,7 @@ struct decoder_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
-	int   (*set_conf)  (void *conf, char *parameter, char *value);
+	int   (*set_conf)  (void *conf, const char *parameter, const char *value);
 
 	/* Decode a frame.
 	 * Input frame data is soft decision bits,
@@ -129,7 +129,7 @@ struct rx_output_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
-	int   (*set_conf)  (void *conf, char *parameter, char *value);
+	int   (*set_conf)  (void *conf, const char *parameter, const char *value);
 
 	// Set callback to a decoder which is used to decode a frame
 	int   (*set_callbacks) (void *, const struct decoder_code *, void *decoder_arg);
@@ -148,7 +148,7 @@ struct receiver_code {
 	void *(*init)          (const void *conf);
 	int   (*destroy)       (void *);
 	void *(*init_conf)     (void);
-	int   (*set_conf)      (void *conf, char *parameter, char *value);
+	int   (*set_conf)      (void *conf, const char *parameter, const char *value);
 
 	// Set callback to an rx_output module which is called when a frame has been received
 	int   (*set_callbacks) (void *, const struct rx_output_code *, void *rx_output_arg);
@@ -169,7 +169,7 @@ struct encoder_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
-	int   (*set_conf)  (void *conf, char *parameter, char *value);
+	int   (*set_conf)  (void *conf, const char *parameter, const char *value);
 
 	/* Encode a frame.
 	 * Input is an array of data bytes,
@@ -186,7 +186,7 @@ struct tx_input_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
-	int   (*set_conf)  (void *conf, char *parameter, char *value);
+	int   (*set_conf)  (void *conf, const char *parameter, const char *value);
 
 	// Set callback to a encoder which is used to encode a frame
 	int   (*set_callbacks) (void *, const struct encoder_code *, void *encoder_arg);
@@ -220,7 +220,7 @@ struct transmitter_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
-	int   (*set_conf)  (void *conf, char *parameter, char *value);
+	int   (*set_conf)  (void *conf, const char *parameter, const char *value);
 
 	// Set callback to a tx_input module which provides frames to be transmitted
 	int   (*set_callbacks) (void *, const struct tx_input_code *, void *tx_input_arg);
@@ -245,7 +245,7 @@ struct signal_io_code {
 	void *(*init)      (const void *conf);
 	int   (*destroy)   (void *);
 	void *(*init_conf) (void);
-	int   (*set_conf)  (void *conf, char *parameter, char *value);
+	int   (*set_conf)  (void *conf, const char *parameter, const char *value);
 
 	// Set callbacks to a receiver and a transmitter
 	int   (*set_callbacks)(void *, const struct receiver_code *, void *receiver_arg, const struct transmitter_code *, void *transmitter_arg);

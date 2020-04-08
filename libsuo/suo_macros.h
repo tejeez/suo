@@ -25,7 +25,7 @@ static void *init_conf(void) \
 		*conf = NAME ## _defaults; \
 	return conf; \
 } \
-static int set_conf(void *conf, char *parameter, char *value) \
+static int set_conf(void *conf, const char *parameter, const char *value) \
 { \
 	struct NAME ## _conf *c = conf;
 
@@ -42,7 +42,7 @@ static int set_conf(void *conf, char *parameter, char *value) \
 
 #define CONFIG_NONE() \
 static void *init_conf(void) { return NULL; } \
-static int set_conf(void *conf, char *parameter, char *value) \
+static int set_conf(void *conf, const char *parameter, const char *value) \
 { \
 	(void)conf; (void)parameter; (void)value; \
 	return -1; /* No configuration parameters */ \

@@ -56,10 +56,10 @@ static int destroy(void *arg)
 static int set_callbacks(void *arg, const struct receiver_code *receiver, void *receiver_arg, const struct transmitter_code *transmitter, void *transmitter_arg)
 {
 	struct file_io *self = arg;
-	self->receiver = receiver;
 	self->receiver_arg = receiver_arg;
-	self->transmitter = transmitter;
+	self->receiver = receiver;
 	self->transmitter_arg = transmitter_arg;
+	self->transmitter = transmitter;
 	return 0;
 }
 
@@ -76,26 +76,28 @@ static int execute(void *arg)
 	if (self->in == NULL)
 		return -1;
 	for(;;) {
-		size_t n, i;
-		if(inputformat == FORMAT_CU8) {
-			cu8_t buf1[BUFLEN];
-			n = fread(buf1, sizeof(cu8_t), BUFLEN, self->in);
-			if(n == 0) break;
-			for(i=0; i<n; i++)
-				buf2[i] = (float)buf1[i][0] - 127.4f
-					+((float)buf1[i][1] - 127.4f)*I;
-		} else if(inputformat == FORMAT_CS16) {
-			cs16_t buf1[BUFLEN];
-			n = fread(buf1, sizeof(cs16_t), BUFLEN, self->in);
-			if(n == 0) break;
-			for(i=0; i<n; i++)
-				buf2[i] = (float)buf1[i][0]
-					+((float)buf1[i][1])*I;
-		} else {
-			n = fread(buf2, sizeof(sample_t), BUFLEN, self->in);
-			if(n == 0) break;
+		size_t n = BUFLEN, i;
+		if (self->receiver != NULL) {
+			if(inputformat == FORMAT_CU8) {
+				cu8_t buf1[BUFLEN];
+				n = fread(buf1, sizeof(cu8_t), BUFLEN, self->in);
+				if(n == 0) break;
+				for(i=0; i<n; i++)
+					buf2[i] = (float)buf1[i][0] - 127.4f
+						+((float)buf1[i][1] - 127.4f)*I;
+			} else if(inputformat == FORMAT_CS16) {
+				cs16_t buf1[BUFLEN];
+				n = fread(buf1, sizeof(cs16_t), BUFLEN, self->in);
+				if(n == 0) break;
+				for(i=0; i<n; i++)
+					buf2[i] = (float)buf1[i][0]
+						+((float)buf1[i][1])*I;
+			} else {
+				n = fread(buf2, sizeof(sample_t), BUFLEN, self->in);
+				if(n == 0) break;
+			}
+			self->receiver->execute(self->receiver_arg, buf2, n, timestamp);
 		}
-		self->receiver->execute(self->receiver_arg, buf2, n, timestamp);
 
 		if (self->transmitter != NULL) {
 			assert(n <= BUFLEN);
