@@ -1,6 +1,6 @@
 CC=gcc
 SRCS=suo.c configure.c
-CFLAGS=-Wall -Wextra -Wdouble-promotion -O3 -I../libsuo -g
+CFLAGS=-Wall -Wextra -Wdouble-promotion -O3 -fcx-limited-range -march=native -I../libsuo -g
 LIBS=-L../libsuo/build -lsuo-dsp -lliquid -lm
 IO_LIBS=-lsuo-io -lSoapySDR -lzmq -lpthread
 BUILD=build

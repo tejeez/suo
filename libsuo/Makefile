@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -Wdouble-promotion -std=gnu11 -O3 -g
+CFLAGS=-Wall -Wextra -Wdouble-promotion -std=gnu11 -O3 -fcx-limited-range -march=native -g
 CFLAGS += -I.
 
 BUILD=build
