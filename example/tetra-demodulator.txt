@@ -14,13 +14,8 @@ none
 none
 -
 file_io
-
-# Download and uncompress a recording of a DMO repeater from:
-# https://prkele.prk.tky.fi/~peltolt2/TETRA_434412500Hz_250ksps.cu8.bz2
-# To dump bits, run ./zmq_dump.py at the same time.
 samplerate 250000
 format 0
 input TETRA_434412500Hz_250ksps.cu8
-
 output /dev/null
 -
