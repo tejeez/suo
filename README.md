@@ -113,7 +113,31 @@ Compile Suo:
 
 Run it:
 
-    ~/suo/suoapp/build/suo configuration_file.txt
+    cd ~/suo/example
+    ../suoapp/build/suo example_config.txt
+
+
+## Installation on Windows
+
+Install [PothosSDR](https://downloads.myriadrf.org/builds/PothosSDR/).
+This contains SoapySDR and liquid-dsp compiled for Windows.
+Install it at the default place, `C:\Program Files\PothosSDR`.
+
+Install [MSYS2](https://www.msys2.org/).
+This contains a GCC toolchain for Windows.
+
+Open the MSYS2 shell and install dependencies:
+
+    pacman -S git mingw-w64-x86_64-toolchain mingw-w64-x86_64-zeromq
+
+To compile and run Suo, open the MSYS2 shell and use the same commands
+that were used on Ubuntu. Before running it, do this:
+
+    export PATH="/c/Program Files/PothosSDR/bin:/mingw64/bin:"$PATH
+
+Tested with USRP B200 and LimeSDR on 64-bit Windows 10.
+[LimeSDR driver](https://wiki.myriadrf.org/LimeSDR_Windows_Driver_Installation)
+has to be installed first.
 
 
 ## Licensing

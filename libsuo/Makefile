@@ -1,15 +1,26 @@
-CC=gcc
-CFLAGS=-Wall -Wextra -Wdouble-promotion -std=gnu11 -O3 -fcx-limited-range -march=native -g
+CC = gcc
+CFLAGS =
+CFLAGS += -g
+CFLAGS += -Wall -Wextra -Wdouble-promotion
+CFLAGS += -std=gnu11 -fcx-limited-range
+CFLAGS += -O3 -march=native
 CFLAGS += -I.
 
-BUILD=build
 DSP_SRCS = dsp_modules.c $(wildcard modem/*.c coding/*.c)
 DSP_OBJS = $(addprefix $(BUILD)/,$(DSP_SRCS:.c=.o))
 
 IO_SRCS = io_modules.c $(wildcard frame-io/*.c signal-io/*.c)
 IO_OBJS = $(addprefix $(BUILD)/,$(IO_SRCS:.c=.o))
 
-DEPS=Makefile $(wildcard *.h */*.h)
+BUILD = build
+DEPS = Makefile $(wildcard *.h */*.h)
+
+ifeq ($(OS),Windows_NT)
+	# Kludge to compile on 64-bit Windows using MSYS2
+	PATH += :/mingw64/bin
+	CFLAGS += "-I/c/Program Files/PothosSDR/include"
+	CC = x86_64-w64-mingw32-gcc
+endif
 
 all: $(BUILD)/libsuo-dsp.a $(BUILD)/libsuo-io.a
 

@@ -14,6 +14,10 @@
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 struct soapysdr_io {
 	const struct receiver_code *receiver;
 	void *receiver_arg;
@@ -33,11 +37,25 @@ static void soapy_fail(const char *function, int ret)
 
 static volatile int running = 1;
 
+#ifdef _WIN32
+static BOOL WINAPI winhandler(DWORD ctrl)
+{
+	switch (ctrl) {
+	case CTRL_C_EVENT:
+	case CTRL_CLOSE_EVENT:
+		running = 0;
+		return TRUE;
+	default:
+		return FALSE;
+	}
+}
+#else
 static void sighandler(int sig)
 {
 	(void)sig;
 	running = 0;
 }
+#endif
 
 
 typedef unsigned char sample1_t[2];
@@ -64,6 +82,9 @@ static int execute(void *arg)
 	 ---- Hardware initialization ----
 	 ---------------------------------*/
 
+#ifdef _WIN32
+	SetConsoleCtrlHandler(winhandler, TRUE);
+#else
 	struct sigaction sigact;
 	sigact.sa_handler = sighandler;
 	sigemptyset(&sigact.sa_mask);
@@ -72,6 +93,7 @@ static int execute(void *arg)
 	sigaction(SIGTERM, &sigact, NULL);
 	sigaction(SIGQUIT, &sigact, NULL);
 	sigaction(SIGPIPE, &sigact, NULL);
+#endif
 
 	sdr = SoapySDRDevice_make(&self->conf.args);
 	SoapySDRKwargs_clear(&self->conf.args);
