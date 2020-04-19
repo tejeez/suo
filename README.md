@@ -114,7 +114,7 @@ Compile Suo:
 Run it:
 
     cd ~/suo/example
-    ../suoapp/build/suo example_config.txt
+    ../suoapp/build/suo example-config.txt
 
 
 ## Installation on Windows

@@ -58,8 +58,6 @@ static void sighandler(int sig)
 #endif
 
 
-typedef unsigned char sample1_t[2];
-
 static int execute(void *arg)
 {
 	struct soapysdr_io *self = arg;

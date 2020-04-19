@@ -8,13 +8,14 @@ CFLAGS += -I../libsuo
 
 SRCS = suo.c configure.c
 OBJS = $(addprefix $(BUILD)/,$(SRCS:.c=.o))
+DEPS = Makefile $(wildcard *.h) ../libsuo/suo.h
 
 LIBDIR = -L../libsuo/build
 LIBS = -lsuo-dsp -lliquid -lm
 IO_LIBS = -lsuo-io -lSoapySDR -lzmq -lpthread
 
 BUILD = build
-DEPS = Makefile $(wildcard *.h) ../libsuo/suo.h
+DESTDIR ?= /usr/local/bin
 
 ifeq ($(OS),Windows_NT)
 	# Kludge to compile on 64-bit Windows using MSYS2
@@ -34,6 +35,13 @@ $(BUILD)/%.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf "$(BUILD)"
 
-.PHONY: all clean
+install: $(BUILD)/suo
+	mkdir -p "$(DESTDIR)"
+	cp "$(BUILD)/suo" "$(DESTDIR)/suo"
+
+uninstall:
+	rm -f "$(DESTDIR)/suo"
+
+.PHONY: all clean install uninstall
