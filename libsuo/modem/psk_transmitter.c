@@ -44,6 +44,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 {
 	const float pi_4f = 0.7853981633974483f;
 	struct psk_transmitter *self = arg;
+	self->input->tick(self->input_arg, timestamp);
 
 	size_t buflen = suo_duc_in_size(self->duc, maxsamples, &timestamp);
 	size_t i;

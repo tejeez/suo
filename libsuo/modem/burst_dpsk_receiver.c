@@ -125,6 +125,8 @@ static inline void check_sync(struct burst_dpsk_receiver *self, uint64_t lb, tim
 static int execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t timestamp)
 {
 	struct burst_dpsk_receiver *self = arg;
+	self->output->tick(self->output_arg, timestamp);
+
 	sample_t in[suo_ddc_out_size(self->ddc, nsamp)];
 	size_t i, in_n;
 	in_n = suo_ddc_execute(self->ddc, samples, nsamp, in, &timestamp);

@@ -33,7 +33,7 @@ static int set_conf(void *conf, const char *parameter, const char *value) \
 
 #define CONFIG_I(param) if (strcmp(parameter, #param) == 0) { c->param = atoll(value); return 0; }
 
-#define CONFIG_C(param) if (strcmp(parameter, #param) == 0) { int l = strlen(value)+1; char *str = malloc(l); strncpy(str, value, l); c->param = str; return 0; }
+#define CONFIG_C(param) if (strcmp(parameter, #param) == 0) { c->param = strdup(value); return 0; }
 
 #define CONFIG_END() \
 	return -1; /* Unknown configuration parameter */ \

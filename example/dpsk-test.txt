@@ -1,32 +1,35 @@
 burst_dpsk_receiver
-centerfreq 37000
-samplerate 500000
+# Tune the receiver somewhat away from the SDR center frequency
+# to avoid 1/f noise and DC
+centerfreq 37500
+samplerate 250000
 -
-basic_decoder
-bypass 1
+none
+# With no decoder selected, soft bits from the receiver
+# are sent straight to ZeroMQ
 -
 zmq_output
-
 -
 psk_transmitter
-centerfreq 37000
-samplerate 500000
+centerfreq 37500
+samplerate 250000
 -
-basic_encoder
-bypass 1
+none
+# With no encoder selected, bits from ZeroMQ go straight to transmitter
 -
 zmq_input
-
 -
 soapysdr_io
 soapy-driver lime
-samplerate 500000
+
+# If sample rate is changed, remember to change it
+# also for receiver and transmitter
+samplerate 250000
+
 rx_centerfreq 434e6
 tx_centerfreq 434e6
-#rx_centerfreq 416.2e6
-#tx_centerfreq 416.2e6
 rx_antenna LNAL
 tx_antenna BAND1
-rx_gain 20
-tx_gain 40
+rx_gain 30
+tx_gain 30
 -

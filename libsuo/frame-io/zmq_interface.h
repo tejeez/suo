@@ -9,14 +9,18 @@
 #define ZMQIO_METADATA 2
 // Flag: run decoder or encoder in a separate thread (TODO)
 #define ZMQIO_THREAD 4
+// Flag: bind to a socket. Otherwise, connect.
+#define ZMQIO_BIND_TICK 8
 
 struct zmq_rx_output_conf {
 	const char *address;
+	const char *address_tick;
 	uint32_t flags;
 };
 
 struct zmq_tx_input_conf {
 	const char *address;
+	const char *address_tick;
 	uint32_t flags;
 };
 

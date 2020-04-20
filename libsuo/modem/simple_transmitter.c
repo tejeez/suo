@@ -74,6 +74,8 @@ static int set_callbacks(void *arg, const struct tx_input_code *input, void *inp
 static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t timestamp)
 {
 	struct simple_transmitter *self = arg;
+	self->input.tick(self->input_arg, timestamp);
+
 	size_t nsamples = 0;
 
 	const uint32_t symrate = self->symrate;

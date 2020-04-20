@@ -102,6 +102,14 @@ struct frame {
 };
 
 
+// Timing and control messages
+struct timing {
+	uint32_t id;      // Arbitrary identifier
+	uint32_t flags;   // Unused
+	timestamp_t time; // Current time
+};
+
+
 /* -----------------------------------------
  * Receive related interfaces and data types
  * ----------------------------------------- */
@@ -136,6 +144,9 @@ struct rx_output_code {
 
 	// Called by a receiver when a frame has been received
 	int   (*frame) (void *, const struct frame *frame);
+
+	// Called regularly with the time where reception is going
+	int   (*tick)      (void *, timestamp_t timenow);
 };
 
 
@@ -193,6 +204,9 @@ struct tx_input_code {
 
 	// Called by a transmitter to request the next frame to be transmitted
 	int   (*get_frame) (void *, struct frame *frame, size_t maxlen, timestamp_t timenow);
+
+	// Called regularly with the time where transmit signal generation is going
+	int   (*tick)      (void *, timestamp_t timenow);
 };
 
 

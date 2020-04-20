@@ -180,6 +180,7 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 static int simple_receiver_execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t timestamp)
 {
 	struct simple_receiver *self = arg;
+	self->output.tick(self->output_arg, timestamp);
 
 	/* Copy some often used variables to local variables */
 	float est_power = self->est_power;

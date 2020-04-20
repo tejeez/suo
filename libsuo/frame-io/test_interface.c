@@ -69,9 +69,16 @@ int test_output_set_callbacks(void *arg, const struct decoder_code *decoder, voi
 }
 
 
+int tick(void *arg, timestamp_t timenow)
+{
+	(void)arg; (void)timenow;
+	return 0;
+}
+
+
 CONFIG_NONE()
 
-const struct rx_output_code test_rx_output_code = { "test_output", test_output_init, test_output_destroy, init_conf, set_conf, test_output_set_callbacks, test_output_frame };
+const struct rx_output_code test_rx_output_code = { "test_output", test_output_init, test_output_destroy, init_conf, set_conf, test_output_set_callbacks, test_output_frame, tick };
 
 
 
@@ -136,4 +143,4 @@ int test_input_get_frame(void *arg, struct frame *frame, size_t maxlen, timestam
 }
 
 
-const struct tx_input_code test_tx_input_code = { "test_input", test_input_init, test_input_destroy, init_conf, set_conf, test_input_set_callbacks, test_input_get_frame };
+const struct tx_input_code test_tx_input_code = { "test_input", test_input_init, test_input_destroy, init_conf, set_conf, test_input_set_callbacks, test_input_get_frame, tick };
