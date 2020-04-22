@@ -32,4 +32,12 @@ rx_antenna LNAL
 tx_antenna BAND1
 rx_gain 30
 tx_gain 30
+
+# At 250 kHz, TX latency of 2048 means that the transmit signal is
+# synthesized about 8 ms before being sent to the radio.
+tx_latency 2048
+
+# tx_latency should be at least 2 times, maybe about 4 times buffer size,
+# so let's make buffer size one quarter of the tx_latency.
+buffer 512
 -

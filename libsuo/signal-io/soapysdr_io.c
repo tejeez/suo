@@ -140,32 +140,38 @@ static int execute(void *arg)
 			radioconf->samplerate);
 	}
 
+	{
+	// TODO: add stream args into configuration
+	SoapySDRKwargs stream_args = {};
+	SoapySDRKwargs_set(&stream_args, "latency", "0"); // LimeSDR experiment
 #if SOAPY_SDR_API_VERSION < 0x00080000
 	SOAPYCHECK(SoapySDRDevice_setupStream,
 		sdr, &rxstream, SOAPY_SDR_RX,
-		SOAPY_SDR_CF32, &radioconf->rx_channel, 1, NULL);
+		SOAPY_SDR_CF32, &radioconf->rx_channel, 1, &stream_args);
 
 	if (radioconf->flags & SOAPYIO_TX_ON) {
 		SOAPYCHECK(SoapySDRDevice_setupStream,
 			sdr, &txstream, SOAPY_SDR_TX,
-			SOAPY_SDR_CF32, &radioconf->tx_channel, 1, NULL);
+			SOAPY_SDR_CF32, &radioconf->tx_channel, 1, &stream_args);
 	}
 #else
 	rxstream = SoapySDRDevice_setupStream(sdr,
-		SOAPY_SDR_RX, SOAPY_SDR_CF32, &radioconf->rx_channel, 1, NULL);
+		SOAPY_SDR_RX, SOAPY_SDR_CF32, &radioconf->rx_channel, 1, &stream_args);
 	if(rxstream == NULL) {
 		soapy_fail("SoapySDRDevice_setupStream", 0);
 		goto exit_soapy;
 	}
 	if (radioconf->flags & SOAPYIO_TX_ON) {
 		txstream = SoapySDRDevice_setupStream(sdr,
-			SOAPY_SDR_TX, SOAPY_SDR_CF32, &radioconf->tx_channel, 1, NULL);
+			SOAPY_SDR_TX, SOAPY_SDR_CF32, &radioconf->tx_channel, 1, &stream_args);
 		if(txstream == NULL) {
 			soapy_fail("SoapySDRDevice_setupStream", 0);
 			goto exit_soapy;
 		}
 	}
 #endif
+	SoapySDRKwargs_clear(&stream_args);
+	}
 
 	fprintf(stderr, "Starting to receive\n");
 	SOAPYCHECK(SoapySDRDevice_activateStream, sdr,

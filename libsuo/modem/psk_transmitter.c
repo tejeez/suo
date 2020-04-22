@@ -17,6 +17,7 @@ enum frame_state { FRAME_NONE, FRAME_WAIT, FRAME_TX };
 struct psk_transmitter {
 	/* Configuration */
 	struct psk_transmitter_conf c;
+	timestamp_t mf_delay_ns;
 	float sample_ns;
 
 	/* Callbacks */
@@ -44,6 +45,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 {
 	const float pi_4f = 0.7853981633974483f;
 	struct psk_transmitter *self = arg;
+	timestamp += self->mf_delay_ns;
 	self->input->tick(self->input_arg, timestamp);
 
 	size_t buflen = suo_duc_in_size(self->duc, maxsamples, &timestamp);
@@ -141,6 +143,7 @@ static void *init(const void *conf_v)
 	float taps[MFTAPS];
 	liquid_firdes_rrcos(OVERSAMP, MFDELAY, 0.35, 0, taps);
 	self->l_mf = firfilt_crcf_create(taps, MFTAPS);
+	self->mf_delay_ns = self->sample_ns * (MFDELAY*OVERSAMP);
 
 	// For initial testing:
 

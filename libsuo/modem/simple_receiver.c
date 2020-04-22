@@ -130,7 +130,7 @@ static int simple_receiver_destroy(void *arg)
 }
 
 
-static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
+static void simple_deframer_execute(struct simple_receiver *self, unsigned bit, timestamp_t time)
 {
 	unsigned framepos = self->framepos;
 	const unsigned framelen = self->c.framelen;
@@ -167,6 +167,7 @@ static void simple_deframer_execute(struct simple_receiver *self, unsigned bit)
 				- self->freq_center ) / self->nco_1Hz;
 			self->frame.m.power = 10.0f * log10f(self->est_power);
 			self->frame.m.ber = (float)syncerrs; // not real BER :D
+			self->frame.m.time = time; // TODO decide where it should exactly point
 		}
 	}
 
@@ -188,8 +189,7 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 	/* Allocate small buffers from stack */
 	sample_t samples2[self->resampint];
 
-	self->frame.m.time = timestamp;
-	/* TODO: increment timestamp in loop */
+	timestamp_t sample_ns = roundf(1.0e9f / self->c.samplerate);
 
 	size_t si;
 	for(si = 0; si < nsamp; si++) {
@@ -305,10 +305,11 @@ static int simple_receiver_execute(void *arg, const sample_t *samples, size_t ns
 				else
 					decision = 0;
 
-				simple_deframer_execute(self, decision);
+				simple_deframer_execute(self, decision, timestamp);
 			}
 			self->demod_prev = demod;
-		}	
+		}
+		timestamp += sample_ns;
 	}
 
 	return 0;

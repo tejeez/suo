@@ -49,8 +49,9 @@ struct suo_ddc *suo_ddc_init(float fs_in, float fs_out, float cf, unsigned flags
 	 * the filter length and other parameters. */
 
 	float bw = (rate < 1) ? (0.333f * rate) : 0.333f;
-	self->resamp1 = resamp_crcf_create(rate, roundf(3.0f/bw), bw, 60.0f, 16);
-	self->delay_ns = 0; // TODO
+	int semilen = roundf(3.0f / bw);
+	self->resamp1 = resamp_crcf_create(rate, semilen, bw, 60.0f, 16);
+	self->delay_ns = 1.0e9f * semilen / fs_in;
 #endif
 
 	self->nco = nco_crcf_create(LIQUID_NCO);

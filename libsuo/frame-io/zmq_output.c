@@ -162,14 +162,16 @@ static int frame(void *arg, const struct frame *frame)
 {
 	struct zmq_output *self = arg;
 
+	/* Read straight from the subscriber socket
+	 * if decoder thread and its socket is not created */
+	void *s = self->z_decw;
+	if (s == NULL)
+		s = self->z_rx_pub;
+
 	/* Non-blocking send to avoid blocking the receiver in case
 	 * decoder runs out of CPU time and ZMQ buffer fills up.
 	 * Frames are just discarded with a warning message in the case. */
-#ifdef DECODER_THREAD // TODO: make it a configuration flag
-	ZMQCHECK(zmq_send(self->z_decw, frame, sizeof(struct frame) + frame->m.len, ZMQ_DONTWAIT));
-#else
-	ZMQCHECK(zmq_send(self->z_rx_pub, frame, sizeof(struct frame) + frame->m.len, ZMQ_DONTWAIT));
-#endif
+	ZMQCHECK(zmq_send(s, frame, sizeof(struct frame) + frame->m.len, ZMQ_DONTWAIT));
 	return 0;
 fail:
 	return -1;

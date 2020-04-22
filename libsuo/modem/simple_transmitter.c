@@ -15,7 +15,7 @@ struct simple_transmitter {
 	float freq0, freq1;
 
 	/* State */
-	bool transmitting;
+	char transmitting; // 0 = no frame, 1 = frame waiting, 2 = transmitting
 	unsigned framelen, framepos;
 	uint32_t symphase;
 
@@ -82,14 +82,14 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	const float freq0 = self->freq0, freq1 = self->freq1;
 	bit_t *framebuf = self->frame.data;
 
-	bool transmitting = self->transmitting;
+	char transmitting = self->transmitting;
 	unsigned framelen = self->framelen, framepos = self->framepos;
 	uint32_t symphase = self->symphase;
 
-	if(!transmitting) {
+	if (!transmitting) {
 		int ret;
 		ret = self->input.get_frame(self->input_arg, &self->frame, FRAMELEN_MAX, timestamp);
-		if(ret > 0) {
+		if (ret > 0) {
 			assert(ret <= FRAMELEN_MAX);
 			transmitting = 1;
 			framelen = ret;
@@ -97,7 +97,10 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 		}
 	}
 
-	if(transmitting) {
+	if (transmitting == 1 && (int64_t)(timestamp - self->frame.m.time) >= 0)
+		transmitting = 2;
+
+	if (transmitting == 2) {
 		size_t si;
 		for(si = 0; si < maxsamples; si++) {
 			float f_in = freq0;

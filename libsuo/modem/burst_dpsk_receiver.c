@@ -15,6 +15,7 @@
 struct burst_dpsk_receiver {
 	/* Configuration */
 	struct burst_dpsk_receiver_conf c;
+	timestamp_t mf_delay_ns;
 	uint64_t syncmask, syncmask3;
 	float sample_ns;
 	unsigned win_len;
@@ -94,14 +95,12 @@ static void output_frame(struct burst_dpsk_receiver *self, timestamp_t ts, unsig
 	//TODO: check array size somewhere
 	assert(self->frame.m.len <= FRAMELEN_MAX);
 	self->frame.m.mode = type;
-	self->frame.m.time = ts;
+	self->frame.m.time = ts - self->sample_ns * self->win_len;
 	self->output->frame(self->output_arg, &self->frame);
 }
 
 
-/* Check for different syncwords.
- * TODO: add a window for symbols and output a frame if a syncword matches.
- * Now it just prints some debug information. */
+/* Check for different syncwords. */
 static inline void check_sync(struct burst_dpsk_receiver *self, uint64_t lb, timestamp_t ts) {
 	unsigned syncerrs;
 	syncerrs = __builtin_popcountll((lb & self->syncmask) ^ self->c.syncword1);
@@ -125,6 +124,7 @@ static inline void check_sync(struct burst_dpsk_receiver *self, uint64_t lb, tim
 static int execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t timestamp)
 {
 	struct burst_dpsk_receiver *self = arg;
+	timestamp -= self->mf_delay_ns;
 	self->output->tick(self->output_arg, timestamp);
 
 	sample_t in[suo_ddc_out_size(self->ddc, nsamp)];
@@ -132,7 +132,7 @@ static int execute(void *arg, const sample_t *samples, size_t nsamp, timestamp_t
 	in_n = suo_ddc_execute(self->ddc, samples, nsamp, in, &timestamp);
 	float avg_mag2 = self->avg_mag2;
 	unsigned osph = self->osph; // oversampling phase
-	const int syncpos = 133 * OVERSAMP;
+	const int syncpos = self->c.syncpos * OVERSAMP;
 	for (i = 0; i < in_n; i++) {
 		sample_t s = in[i], s1 = 0, dp;
 
@@ -208,6 +208,7 @@ static void *init(const void *conf_v)
 	float taps[MFTAPS];
 	liquid_firdes_rrcos(OVERSAMP, MFDELAY, 0.35, 0, taps);
 	self->l_mf = firfilt_crcf_create(taps, MFTAPS);
+	self->mf_delay_ns = self->sample_ns * (MFDELAY*OVERSAMP);
 
 	self->win_len = (self->c.framelen + 2) * OVERSAMP;
 	self->l_win = windowcf_create(self->win_len);
@@ -240,7 +241,8 @@ const struct burst_dpsk_receiver_conf burst_dpsk_receiver_defaults = {
 	.syncword3 = 0b11000001100111001110100111000001100111,
 	.synclen = 22,
 	.synclen3 = 38,
-	.framelen = 256
+	.syncpos = 133,
+	.framelen = 255
 };
 
 
@@ -253,6 +255,7 @@ CONFIG_I(syncword2)
 CONFIG_I(syncword3)
 CONFIG_I(synclen)
 CONFIG_I(synclen3)
+CONFIG_I(syncpos)
 CONFIG_I(framelen)
 CONFIG_END()
 
