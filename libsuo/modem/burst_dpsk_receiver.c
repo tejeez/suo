@@ -105,17 +105,17 @@ static inline void check_sync(struct burst_dpsk_receiver *self, uint64_t lb, tim
 	unsigned syncerrs;
 	syncerrs = __builtin_popcountll((lb & self->syncmask) ^ self->c.syncword1);
 	if (syncerrs <= 0) {
-		fprintf(stderr, "%20lu ns: Found syncword 1 with %u errors\n", ts, syncerrs);
+		//fprintf(stderr, "%20lu ns: Found syncword 1 with %u errors\n", ts, syncerrs);
 		output_frame(self, ts, 1);
 	}
 	syncerrs = __builtin_popcountll((lb & self->syncmask) ^ self->c.syncword2);
 	if (syncerrs <= 0) {
-		fprintf(stderr, "%20lu ns: Found syncword 2 with %u errors\n", ts, syncerrs);
+		//fprintf(stderr, "%20lu ns: Found syncword 2 with %u errors\n", ts, syncerrs);
 		output_frame(self, ts, 2);
 	}
 	syncerrs = __builtin_popcountll((lb & self->syncmask3) ^ self->c.syncword3);
 	if (syncerrs <= 3) {
-		fprintf(stderr, "%20lu ns: Found syncword 3 with %u errors\n", ts, syncerrs);
+		//fprintf(stderr, "%20lu ns: Found syncword 3 with %u errors\n", ts, syncerrs);
 		output_frame(self, ts, 3);
 	}
 }
@@ -210,7 +210,7 @@ static void *init(const void *conf_v)
 	self->l_mf = firfilt_crcf_create(taps, MFTAPS);
 	self->mf_delay_ns = self->sample_ns * (MFDELAY*OVERSAMP);
 
-	self->win_len = (self->c.framelen + 2) * OVERSAMP;
+	self->win_len = (self->c.framelen + 1) * OVERSAMP;
 	self->l_win = windowcf_create(self->win_len);
 	return self;
 }

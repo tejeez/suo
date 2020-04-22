@@ -41,6 +41,28 @@ struct psk_transmitter {
 };
 
 
+static void get_next_frame(struct psk_transmitter *self, timestamp_t timenow)
+{
+	if (self->state == FRAME_NONE) {
+		int fl = self->input->get_frame(self->input_arg,
+			&self->frame, FRAMELEN_MAX, timenow);
+		if (fl >= 0) {
+			if (self->frame.m.flags & METADATA_TIME) {
+				self->state = FRAME_WAIT;
+				int64_t timediff = timenow - self->frame.m.time;
+				if (timediff > 0) {
+					fprintf(stderr, "Warning: TX frame late by %ld ns\n", timediff);
+					if (self->frame.m.flags & METADATA_NO_LATE)
+						self->state = FRAME_NONE;
+				}
+			} else {
+				self->state = FRAME_TX;
+			}
+		}
+	}
+}
+
+
 static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, timestamp_t timestamp)
 {
 	const float pi_4f = 0.7853981633974483f;
@@ -59,25 +81,19 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	unsigned pskph = self->pskph; // DPSK phase accumulator
 	unsigned framepos = self->framepos;
 
-	if (self->state == FRAME_NONE) {
-		int fl = self->input->get_frame(self->input_arg,
-			&self->frame, FRAMELEN_MAX, timestamp);
-		if (fl >= 0) {
-			self->state = FRAME_WAIT;
-			//fprintf(stderr, "New frame at %lu\n", self->frame.m.time);
-		}
-	}
+	if (self->state == FRAME_NONE)
+		get_next_frame(self, timestamp);
 
 	for (i = 0; i < buflen; i++) {
 		sample_t s = 0;
+		timestamp_t timenow = timestamp + (timestamp_t)(sample_ns * i);
 		if (self->state == FRAME_WAIT) {
 			/* Frame is waiting to be transmitted */
-			timestamp_t timenow = timestamp + (timestamp_t)(sample_ns * i);
 			int64_t timediff = timenow - self->frame.m.time;
 			if (timediff >= 0) {
 				self->state = FRAME_TX;
 				symph = 0;
-				fprintf(stderr, "%lu: Starting transmission\n", self->frame.m.time);
+				//fprintf(stderr, "%lu: Starting transmission\n", self->frame.m.time);
 			}
 		}
 		if (self->state == FRAME_TX && symph == 0) {
@@ -100,12 +116,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			if (framepos+1 >= self->frame.m.len) {
 				framepos = 0;
 				self->state = FRAME_NONE;
-				int fl = self->input->get_frame(self->input_arg,
-					&self->frame, FRAMELEN_MAX,
-					timestamp + (timestamp_t)(sample_ns * i));
-				if (fl >= 0)
-					self->state = FRAME_WAIT;
-				//fprintf(stderr, "Next frame at %lu\n", self->frame.m.time);
+				get_next_frame(self, timenow);
 			}
 		}
 		firfilt_crcf_push(self->l_mf, s);

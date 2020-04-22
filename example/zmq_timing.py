@@ -7,19 +7,19 @@
 
 import zmq, threading, struct, time
 
-tx_ahead = int(20e6)  # How many nanoseconds before modulation the transmit frame is sent to the modulator
-tx_interval = int(123.456789e6)  # How often to transmit
+tx_ahead = int(7e6)  # How many nanoseconds before modulation the transmit frame is sent to the modulator
+tx_interval = int(1e9 * 510 / 18000)  # How often to transmit
 
 ctx = zmq.Context()
 
 rx = ctx.socket(zmq.SUB)
 # Subscribe to both RX frames and TX tick messages
-rx.connect("tcp://localhost:43300")
-rx.connect("tcp://localhost:43303")
+rx.connect("ipc:///tmp/dpsk-modem-rx")
+rx.connect("ipc:///tmp/dpsk-modem-tx-tick")
 rx.setsockopt(zmq.SUBSCRIBE, b"")
 
 tx = ctx.socket(zmq.PUB)
-tx.connect("tcp://localhost:43301")
+tx.connect("ipc:///tmp/dpsk-modem-tx")
 
 tx_next = int(0)
 tx_prev = int(0)
@@ -44,7 +44,7 @@ while True:
 		if tick - tx_next >= -tx_ahead:
 			print("\33[1;32m%20d: TX" % tx_next)
 			tx_prev = tx_next
-			tx.send(struct.pack('IIQIffffffffffI', 1, 4, tx_next, 0, 0,0,0,0, 0,0,0,0,0,0, len(tx_data)) + tx_data)
+			tx.send(struct.pack('IIQIffffffffffI', 1, 0x40004, tx_next, 0, 0,0,0,0, 0,0,0,0,0,0, len(tx_data)) + tx_data)
 			tx_next += tx_interval
 
 		tick_prev = tick
