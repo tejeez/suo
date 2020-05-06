@@ -4,12 +4,13 @@
 
 #include <SoapySDR/Device.h>
 
-#define SOAPYIO_RX_ON 1
-#define SOAPYIO_TX_ON 2
-
 struct soapysdr_io_conf {
-	// Flags, such as SOAPYIO_TX_ON
-	unsigned flags;
+	// Configuration flags
+	unsigned char
+	rx_on:1,     // Enable reception
+	tx_on:1,     // Enable transmission
+	tx_cont:1,   // Write TX as a continuous stream
+	use_time:1;  // Enable use of stream timestamps
 	// Number of samples in one RX buffer
 	unsigned buffer;
 	/* How much ahead TX signal should be generated (samples).
@@ -35,6 +36,10 @@ struct soapysdr_io_conf {
 	const char *tx_antenna;
 	// SoapySDR device args, such as the driver to use
 	SoapySDRKwargs args;
+	// SoapySDR receive stream args
+	SoapySDRKwargs rx_args;
+	// SoapySDR transmit stream args
+	SoapySDRKwargs tx_args;
 };
 
 extern const struct soapysdr_io_conf soapysdr_io_defaults;

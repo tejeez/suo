@@ -24,7 +24,11 @@ address ipc:///tmp/dpsk-modem-tx
 address_tick ipc:///tmp/dpsk-modem-tx-tick
 -
 soapysdr_io
-soapy-driver lime
+device:driver lime
+
+# LimeSDR specific parameters
+rx_stream:latency 0
+tx_stream:latency 0
 
 # If sample rate is changed, remember to change it
 # also for receiver and transmitter
