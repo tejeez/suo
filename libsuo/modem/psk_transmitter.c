@@ -41,11 +41,11 @@ struct psk_transmitter {
 };
 
 
-static void get_next_frame(struct psk_transmitter *self, timestamp_t timenow)
+static void get_next_frame(struct psk_transmitter *self, timestamp_t timenow, timestamp_t time_end)
 {
 	if (self->state == FRAME_NONE) {
 		int fl = self->input->get_frame(self->input_arg,
-			&self->frame, FRAMELEN_MAX, timenow);
+			&self->frame, FRAMELEN_MAX, time_end);
 		if (fl >= 0) {
 			if (self->frame.m.flags & METADATA_TIME) {
 				self->state = FRAME_WAIT;
@@ -67,22 +67,24 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 {
 	const float pi_4f = 0.7853981633974483f;
 	struct psk_transmitter *self = arg;
+
 	timestamp += self->mf_delay_ns;
+	size_t buflen = suo_duc_in_size(self->duc, maxsamples, &timestamp);
 	self->input->tick(self->input_arg, timestamp);
 
-	size_t buflen = suo_duc_in_size(self->duc, maxsamples, &timestamp);
 	size_t i;
 	sample_t buf[buflen];
 
 	const float sample_ns = self->sample_ns;
 	const float amp = 0.5f; // Amplitude
+	const timestamp_t time_end = timestamp + (timestamp_t)(sample_ns * buflen);
 
 	unsigned symph = self->symph; // Symbol clock phase
 	unsigned pskph = self->pskph; // DPSK phase accumulator
 	unsigned framepos = self->framepos;
 
 	if (self->state == FRAME_NONE)
-		get_next_frame(self, timestamp);
+		get_next_frame(self, timestamp, time_end);
 
 	for (i = 0; i < buflen; i++) {
 		sample_t s = 0;
@@ -116,7 +118,7 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 			if (framepos+1 >= self->frame.m.len) {
 				framepos = 0;
 				self->state = FRAME_NONE;
-				get_next_frame(self, timenow);
+				get_next_frame(self, timestamp, time_end);
 			}
 		}
 		firfilt_crcf_push(self->l_mf, s);

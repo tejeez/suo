@@ -12,6 +12,7 @@ struct simple_transmitter {
 	/* Configuration */
 	struct simple_transmitter_conf c;
 	uint32_t symrate;
+	float sample_ns;
 	float freq0, freq1;
 
 	/* State */
@@ -43,6 +44,7 @@ static void *init(const void *conf_v)
 	const float samplerate = self->c.samplerate;
 
 	self->symrate = 4294967296.0f * self->c.symbolrate / samplerate;
+	self->sample_ns = 1.0e9f / samplerate;
 
 	const float deviation = pi2f * self->c.modindex * 0.5f * self->c.symbolrate / samplerate, cf = pi2f * self->c.centerfreq / samplerate;
 	self->freq0 = cf - deviation;
@@ -87,8 +89,8 @@ static tx_return_t execute(void *arg, sample_t *samples, size_t maxsamples, time
 	uint32_t symphase = self->symphase;
 
 	if (!transmitting) {
-		int ret;
-		ret = self->input.get_frame(self->input_arg, &self->frame, FRAMELEN_MAX, timestamp);
+		const timestamp_t time_end = timestamp + (timestamp_t)(self->sample_ns * maxsamples);
+		int ret = self->input.get_frame(self->input_arg, &self->frame, FRAMELEN_MAX, time_end);
 		if (ret > 0) {
 			assert(ret <= FRAMELEN_MAX);
 			transmitting = 1;

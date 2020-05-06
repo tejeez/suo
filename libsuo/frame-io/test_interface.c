@@ -4,7 +4,7 @@
 #include <string.h>
 
 struct test_output {
-	struct decoder_code decoder;
+	const struct decoder_code *decoder;
 	void *decoder_arg;
 };
 
@@ -30,7 +30,12 @@ static int test_output_frame(void *arg, const struct frame *frame)
 		printf("%3d ", frame->data[i]);
 	printf("\n\n");
 
-	ret = self->decoder.decode(self->decoder_arg, frame, decoded, 0x200);
+	if (self->decoder) {
+		ret = self->decoder->decode(self->decoder_arg, frame, decoded, 0x200);
+	} else {
+		decoded = (struct frame *)frame;
+		ret = decoded->m.len;
+	}
 	if(ret >= 0) {
 		for(i = 0; i < (size_t)ret; i++)
 			printf("%02x ", decoded->data[i]);
@@ -63,7 +68,7 @@ int test_output_destroy(void *arg)
 int test_output_set_callbacks(void *arg, const struct decoder_code *decoder, void *decoder_arg)
 {
 	struct test_output *self = arg;
-	self->decoder = *decoder;
+	self->decoder = decoder;
 	self->decoder_arg = decoder_arg;
 	return 0;
 }
@@ -85,7 +90,7 @@ const struct rx_output_code test_rx_output_code = { "test_output", test_output_i
 /* Transmitter testing things */
 
 struct test_input {
-	struct encoder_code encoder;
+	const struct encoder_code *encoder;
 	void *encoder_arg;
 };
 
@@ -109,25 +114,22 @@ int test_input_destroy(void *arg)
 int test_input_set_callbacks(void *arg, const struct encoder_code *encoder, void *encoder_arg)
 {
 	struct test_input *self = arg;
-	self->encoder = *encoder;
+	self->encoder = encoder;
 	self->encoder_arg = encoder_arg;
 	return 0;
 }
 
 
-int test_input_get_frame(void *arg, struct frame *frame, size_t maxlen, timestamp_t timenow)
+int test_input_get_frame(void *arg, struct frame *frame, size_t maxlen, timestamp_t time_dl)
 {
 	struct test_input *self = arg;
 	(void)self;
-	const timestamp_t frame_interval = 20000000;
-	if(timenow % 400000000LL < 100000000LL) {
-		// round up to next multiple of frame_interval
-		frame->m.time = (timenow + frame_interval) / frame_interval * frame_interval;
 
-#if 0
-		const uint8_t packet[30] = "testidataa";
-		return self->encoder.encode(self->encoder_arg, frame->data, maxlen, packet, 30);
-#endif
+	if(time_dl % 400000000LL < 100000000LL) {
+		frame->m.flags = METADATA_FLAGS | METADATA_TIME | METADATA_NO_LATE;
+		// Test this boundary case where a frame wants to be just on the deadline
+		frame->m.time = time_dl;
+
 #define TESTLEN 30
 		if (maxlen < TESTLEN)
 			return -1;

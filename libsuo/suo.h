@@ -202,8 +202,12 @@ struct tx_input_code {
 	// Set callback to a encoder which is used to encode a frame
 	int   (*set_callbacks) (void *, const struct encoder_code *, void *encoder_arg);
 
-	// Called by a transmitter to request the next frame to be transmitted
-	int   (*get_frame) (void *, struct frame *frame, size_t maxlen, timestamp_t timenow);
+	/* Called by a transmitter to request the next frame to be transmitted.
+	 * time_dl is a "deadline": if there is a frame to transmit
+	 * before time_dl, it should be returned in this call, since in the
+	 * next call it may be too late. Returning a frame to transmit after
+	 * time_dl is also accepted though. */
+	int   (*get_frame) (void *, struct frame *frame, size_t maxlen, timestamp_t time_dl);
 
 	// Called regularly with the time where transmit signal generation is going
 	int   (*tick)      (void *, timestamp_t timenow);
