@@ -6,13 +6,21 @@ implementing the physical layer of various communication systems.
 Suo is designed to be modular and portable. Modules are divided into
 a few different categories. For each category, a common interface
 based on function calls and possibly callbacks is defined.
-Calls between modules happen through function pointers placed
-in structs, so that parts of the code can be changed by assigning
-a different value to a function pointer struct.
 
 Signal processing code is mostly platform independent and kept separate
 from the platform-dependent parts related to interfacing SDR hardware,
 operating systems and other programs.
+
+It may seem silly to do something like this in C these days, but
+it happened because:
+
+* It started as something simpler and organically grew
+  into something more complex
+* Since I haven't really made programs this complex before, I hadn't
+  seen the need to learn proper OOP languages
+* The code uses liquid-dsp which is C-friendly
+* The code was somewhat inspired by liquid-dsp in general
+* One can always dream of making a version 2 in another language later
 
 
 ## Using libsuo
@@ -57,6 +65,8 @@ File I/O is also supported, which is useful for testing with
 recorded or simulated signals read from a file, or for piping
 the signals from some other program.
 
+Sound cards can be used through the ALSA I/O module.
+
 Higher protocol layers should run in a separate process, and
 ZeroMQ sockets are used to transfer frames between processes.
 ZeroMQ messages are prefixed with a frame metadata struct.
@@ -91,7 +101,7 @@ of the scope of this document.
 
 Next, install some dependencies:
 
-    sudo apt install git gcc make automake libsoapysdr-dev libzmq3-dev python3 python3-zmq
+    sudo apt install git gcc make automake libsoapysdr-dev libzmq3-dev libasound2-dev python3 python3-zmq
 
     cd
     git clone https://github.com/jgaeddert/liquid-dsp

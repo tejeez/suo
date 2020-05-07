@@ -1,3 +1,5 @@
+ENABLE_ALSA ?= 1
+
 CC = gcc
 CFLAGS =
 CFLAGS += -g
@@ -23,6 +25,12 @@ ifeq ($(OS),Windows_NT)
 	CFLAGS += "-I/c/Program Files/PothosSDR/include"
 	LIBDIR += "-L/c/Program Files/PothosSDR/bin"
 	CC = x86_64-w64-mingw32-gcc
+	ENABLE_ALSA = 0
+endif
+
+ifeq ($(ENABLE_ALSA),1)
+	CFLAGS += -DENABLE_ALSA=1
+	IO_LIBS += -lasound
 endif
 
 all: $(BUILD)/suo

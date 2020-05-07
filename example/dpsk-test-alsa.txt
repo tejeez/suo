@@ -1,0 +1,28 @@
+burst_dpsk_receiver
+centerfreq 12000
+samplerate 48000
+-
+none
+# With no decoder selected, soft bits from the receiver
+# are sent straight to ZeroMQ
+-
+zmq_output
+address ipc:///tmp/dpsk-modem-rx
+address_tick ipc:///tmp/dpsk-modem-rx-tick
+-
+psk_transmitter
+centerfreq 12000
+samplerate 48000
+-
+none
+# With no encoder selected, bits from ZeroMQ go straight to transmitter
+-
+zmq_input
+address ipc:///tmp/dpsk-modem-tx
+address_tick ipc:///tmp/dpsk-modem-tx-tick
+-
+alsa_io
+samplerate 48000
+rx_name hw:2,0
+tx_name hw:2,0
+-

@@ -10,8 +10,12 @@
  * Common data types
  * ----------------- */
 
-// Data type to represent samples
+// Data type to represent I/Q samples in most calculations
 typedef float complex sample_t;
+
+// Fixed-point I/Q samples
+typedef uint8_t cu8_t[2];
+typedef int16_t cs16_t[2];
 
 // Data type to represent single bits. Contains a value 0 or 1.
 typedef uint8_t bit_t;

@@ -1,3 +1,5 @@
+ENABLE_ALSA ?= 1
+
 CC = gcc
 CFLAGS =
 CFLAGS += -g
@@ -20,6 +22,11 @@ ifeq ($(OS),Windows_NT)
 	PATH += :/mingw64/bin
 	CFLAGS += "-I/c/Program Files/PothosSDR/include"
 	CC = x86_64-w64-mingw32-gcc
+	ENABLE_ALSA = 0
+endif
+
+ifeq ($(ENABLE_ALSA),1)
+	CFLAGS += -DENABLE_ALSA=1
 endif
 
 all: $(BUILD)/libsuo-dsp.a $(BUILD)/libsuo-io.a

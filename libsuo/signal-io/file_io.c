@@ -1,11 +1,10 @@
 #include "file_io.h"
 #include "suo_macros.h"
+#include "conversion.h"
 #include <stdio.h>
 #include <assert.h>
 
 
-typedef uint8_t cu8_t[2];
-typedef int16_t cs16_t[2];
 enum inputformat { FORMAT_CU8, FORMAT_CS16, FORMAT_CF32 };
 
 struct file_io {
@@ -76,22 +75,18 @@ static int execute(void *arg)
 	if (self->in == NULL)
 		return -1;
 	for(;;) {
-		size_t n = BUFLEN, i;
+		size_t n = BUFLEN;
 		if (self->receiver != NULL) {
 			if(inputformat == FORMAT_CU8) {
 				cu8_t buf1[BUFLEN];
 				n = fread(buf1, sizeof(cu8_t), BUFLEN, self->in);
 				if(n == 0) break;
-				for(i=0; i<n; i++)
-					buf2[i] = (float)buf1[i][0] - 127.4f
-						+((float)buf1[i][1] - 127.4f)*I;
+				cu8_to_cf(buf1, buf2, n);
 			} else if(inputformat == FORMAT_CS16) {
 				cs16_t buf1[BUFLEN];
 				n = fread(buf1, sizeof(cs16_t), BUFLEN, self->in);
 				if(n == 0) break;
-				for(i=0; i<n; i++)
-					buf2[i] = (float)buf1[i][0]
-						+((float)buf1[i][1])*I;
+				cs16_to_cf(buf1, buf2, n);
 			} else {
 				n = fread(buf2, sizeof(sample_t), BUFLEN, self->in);
 				if(n == 0) break;
