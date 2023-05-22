@@ -14,6 +14,7 @@
 #include <SoapySDR/Device.h>
 #include <SoapySDR/Formats.h>
 #include <SoapySDR/Errors.h>
+#include <SoapySDR/Logger.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -176,29 +177,48 @@ static int execute(void *arg)
 	}
 #endif
 
-	fprintf(stderr, "Starting streams\n");
-	if (conf->rx_on)
-		SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
-			rxstream, 0, 0, 0);
-	if (conf->tx_on)
-		SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
-			txstream, 0, 0, 0);
 
 
 	/*----------------------------
 	 --------- Main loop ---------
 	 -----------------------------*/
 
+	bool streaming = 0;
 	bool tx_burst_going = 0;
-
 	long long current_time = 0;
-	if (conf->use_time)
-		current_time = SoapySDRDevice_getHardwareTime(sdr, "");
-	/* tx_last_end_time is when the previous produced TX buffer
-	 * ended, i.e. where the next buffer should begin */
-	long long tx_last_end_time = current_time + tx_latency_time;
+	long long tx_last_end_time = 0;
+
+	sample_t *initial_tx_zeros = calloc(conf->tx_latency, sizeof(sample_t));
 
 	while(running) {
+		if (!streaming) {
+			streaming = 1;
+			fprintf(stderr, "Starting streams\n");
+			if (conf->rx_on)
+				SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
+					rxstream, 0, 0, 0);
+			if (conf->tx_on)
+				SOAPYCHECK(SoapySDRDevice_activateStream, sdr,
+					txstream, 0, 0, 0);
+
+			if ((!conf->use_time) && conf->rx_on && conf->tx_on) {
+				const void *txbuffs[] = { initial_tx_zeros };
+				int ret;
+				int flags = 0;
+				ret = SoapySDRDevice_writeStream(sdr, txstream,
+					txbuffs, conf->tx_latency, &flags,
+					0, tx_latency_time / 100);
+				if (ret <= 0)
+					goto fix_xrun;
+			}
+
+			if (conf->use_time)
+				current_time = SoapySDRDevice_getHardwareTime(sdr, "");
+			/* tx_last_end_time is when the previous produced TX buffer
+			* ended, i.e. where the next buffer should begin */
+			tx_last_end_time = current_time + tx_latency_time;
+		}
+
 		if (conf->rx_on) {
 			sample_t rxbuf[rx_buflen];
 			void *rxbuffs[] = { rxbuf };
@@ -233,6 +253,8 @@ static int execute(void *arg)
 			} else if(ret <= 0) {
 				soapy_fail("SoapySDRDevice_readStream", ret);
 			}
+			if ((!conf->use_time) && (ret == SOAPY_SDR_OVERFLOW || ret == SOAPY_SDR_UNDERFLOW))
+				goto fix_xrun;
 		} else {
 			/* TX-only case */
 			if (conf->use_time) {
@@ -310,10 +332,20 @@ static int execute(void *arg)
 					timeout_us);
 				if(ret <= 0)
 					soapy_fail("SoapySDRDevice_writeStream", ret);
+				if ((!conf->use_time) && (ret == SOAPY_SDR_OVERFLOW || ret == SOAPY_SDR_UNDERFLOW))
+					goto fix_xrun;
 			} else {
 				tx_burst_going = 0;
 			}
 		}
+		continue;
+		fix_xrun:
+		fprintf(stderr, "Restarting streams to recover from over- or underrun\n");
+		streaming = 0;
+		if (conf->rx_on)
+			SoapySDRDevice_deactivateStream(sdr, rxstream, 0, 0);
+		if (conf->tx_on)
+			SoapySDRDevice_deactivateStream(sdr, txstream, 0, 0);
 	}
 
 	fprintf(stderr, "Stopped receiving\n");
